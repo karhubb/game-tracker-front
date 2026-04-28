@@ -20,7 +20,6 @@ flutter config --enable-web
 echo "==> Limpiando y obteniendo dependencias..."
 flutter clean
 flutter pub get
-
 echo "==> Iniciando Build..."
-# Usamos canvaskit para que se vea mejor en web
-flutter build web --release --canvas-kit --dart-define=API_BASE_URL=https://game-tracker-backend-a6ec.onrender.com
+# Corregido: --web-renderer canvaskit en lugar de --canvas-kit
+flutter build web --release --web-renderer canvaskit --dart-define=API_BASE_URL=https://game-tracker-backend-a6ec.onrender.com
