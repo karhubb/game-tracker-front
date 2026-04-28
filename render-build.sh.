@@ -21,5 +21,4 @@ echo "==> Limpiando y obteniendo dependencias..."
 flutter clean
 flutter pub get
 echo "==> Iniciando Build..."
-# Corregido: --web-renderer canvaskit en lugar de --canvas-kit
-flutter build web --release --web-renderer canvaskit --dart-define=API_BASE_URL=https://game-tracker-backend-a6ec.onrender.com
+flutter build web --release --dart-define=API_BASE_URL=https://game-tracker-backend-a6ec.onrender.com
