@@ -358,17 +358,17 @@ class _GameFormScreenState extends State<GameFormScreen> {
                 Text("¿Ya lo has jugado?",
                     style: GoogleFonts.nunito(
                         color: Colors.white70, fontSize: 14)),
-                Switch(
-                  value: _played,
-                  onChanged: (v) =>
-                      setState(() => _played = v),
-                  // Cambiamos la propiedad para que sea compatible
-                  thumbColor: WidgetStateProperty.resolveWith<Color?>(
-                    (states) => states.contains(WidgetState.selected) 
-                        ? stateGreenColor 
-                        : null,
-                  ),
-                ),
+Switch(
+  value: _played,
+  onChanged: (v) => setState(() => _played = v),
+  thumbColor: WidgetStateProperty.resolveWith<Color?>(
+    (states) => states.contains(WidgetState.selected) 
+        ? stateGreenColor 
+        : null,
+  ),
+),
+              ],
+            ),
 
             const SizedBox(height: 40),
 
