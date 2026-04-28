@@ -362,10 +362,13 @@ class _GameFormScreenState extends State<GameFormScreen> {
                   value: _played,
                   onChanged: (v) =>
                       setState(() => _played = v),
-                  activeThumbColor: stateGreenColor,
+                  // Cambiamos la propiedad para que sea compatible
+                  thumbColor: WidgetStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(WidgetState.selected) 
+                        ? stateGreenColor 
+                        : null,
+                  ),
                 ),
-              ],
-            ),
 
             const SizedBox(height: 40),
 
