@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/game.dart';
+import '../models/reaction.dart';
 import 'auth_service.dart';
 import 'api_config.dart';
 
 class ApiService {
   static String get baseUrl => ApiConfig.gamesBaseUrl;
   static String get adminUsersUrl => '${ApiConfig.apiBaseUrl}/admin/users';
+  static String get reactionTypesUrl => '${ApiConfig.apiBaseUrl}/reactions';
+  static String get noteReactionsUrl => '${ApiConfig.apiBaseUrl}/notes/reactions';
 
   final AuthService _authService = AuthService();
 
@@ -111,6 +114,76 @@ class ApiService {
     );
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Error al eliminar el juego (${response.statusCode})');
+    }
+  }
+
+  Future<List<ReactionType>> fetchReactionTypes() async {
+    await _authService.init();
+    final response = await http.get(
+      Uri.parse(reactionTypesUrl),
+      headers: _getHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body) as List<dynamic>;
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(ReactionType.fromJson)
+          .toList();
+    }
+
+    throw Exception('Error al cargar reacciones (${response.statusCode})');
+  }
+
+  Future<NoteReactionSummary> fetchNoteReactionSummary(
+    int gameId,
+    int noteIndex,
+  ) async {
+    await _authService.init();
+    final response = await http.get(
+      Uri.parse('$noteReactionsUrl/games/$gameId/notes/$noteIndex'),
+      headers: _getHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      return NoteReactionSummary.fromJson(
+        json.decode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Error al cargar el resumen de reacciones (${response.statusCode})',
+    );
+  }
+
+  Future<void> reactToNote({
+    required int gameId,
+    required int noteIndex,
+    required int reactionId,
+  }) async {
+    await _authService.init();
+    final response = await http.post(
+      Uri.parse('$noteReactionsUrl/games/$gameId/notes/$noteIndex'),
+      headers: _getHeaders(withBody: true),
+      body: json.encode({'reactionId': reactionId}),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(
+        'Error al reaccionar a la opinión (${response.statusCode})',
+      );
+    }
+  }
+
+  Future<void> removeNoteReaction(int gameId, int noteIndex) async {
+    await _authService.init();
+    final response = await http.delete(
+      Uri.parse('$noteReactionsUrl/games/$gameId/notes/$noteIndex'),
+      headers: _getHeaders(),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Error al quitar la reacción (${response.statusCode})');
     }
   }
 

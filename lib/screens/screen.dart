@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:game_tracker/services/service.dart';
 import 'package:game_tracker/services/auth_service.dart';
 import 'package:game_tracker/models/game.dart';
+import 'package:game_tracker/models/reaction.dart';
 import 'package:game_tracker/models/user.dart';
 import 'package:game_tracker/screens/game_form_screen.dart';
 import 'login_screen.dart';
@@ -29,6 +30,12 @@ class _GameListScreenState extends State<GameListScreen> {
   // Usuario en sesión — null si no hay sesión (nunca debería pasar gracias
   // al AuthGate, pero se mantiene como guardia defensiva)
   User? _currentUser;
+
+  Map<int, NoteReactionSummary> _reactionSummaries = {};
+  List<ReactionType> _reactionTypes = [];
+  bool _reactionDataLoading = false;
+  bool _reactionDataLoaded = false;
+  String? _reactionDataError;
 
   // ── Colores del diseño original — sin tocar ──────────────────────────────
   final Color aquaColor = const Color(0xFF40E0D0);
@@ -192,6 +199,9 @@ class _GameListScreenState extends State<GameListScreen> {
     Game game,
     StateSetter setModalState,
     int noteIndex,
+    List<ReactionType> reactionTypes,
+    NoteReactionSummary? reactionSummary,
+    Future<void> Function(ReactionType reaction) onReactionTap,
   ) {
     final String dateStr =
         "${note.date.day}/${note.date.month}/${note.date.year} "
@@ -253,6 +263,31 @@ class _GameListScreenState extends State<GameListScreen> {
                     height: 1.4,
                   ),
                 ),
+                const SizedBox(height: 10),
+                if (reactionTypes.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: reactionTypes
+                        .map(
+                          (reaction) => _buildReactionChip(
+                            reaction: reaction,
+                            count: reactionSummary?.countFor(reaction.description) ?? 0,
+                            selectedReactionId:
+                                reactionSummary?.myReaction?.reactionId,
+                            onTap: () => onReactionTap(reaction),
+                          ),
+                        )
+                        .toList(),
+                  )
+                else
+                  Text(
+                    'Cargando reacciones...',
+                    style: GoogleFonts.nunito(
+                      color: Colors.white24,
+                      fontSize: 10,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -263,6 +298,7 @@ class _GameListScreenState extends State<GameListScreen> {
                 try {
                   await apiService.deleteGameNote(game.id!, noteIndex);
                   setModalState(() => game.notes.removeAt(noteIndex));
+                  _shiftReactionSummariesAfterDelete(noteIndex);
                   _refresh();
                   _showSoftMessage("Opinión eliminada");
                 } catch (e) {
@@ -370,6 +406,54 @@ class _GameListScreenState extends State<GameListScreen> {
   // ─────────────────────────────────────────────
 
   void _showGameDetails(Game game) {
+    _reactionSummaries = {};
+    _reactionTypes = [];
+    _reactionDataLoading = false;
+    _reactionDataLoaded = false;
+    _reactionDataError = null;
+
+    Future<void> loadReactionData(StateSetter setModalState) async {
+      if (_reactionDataLoading || _reactionDataLoaded || game.id == null) return;
+      _reactionDataLoading = true;
+      try {
+        final loadedTypes = await apiService.fetchReactionTypes();
+        final loadedSummaries = await Future.wait(
+          game.notes.asMap().entries.map(
+            (entry) => apiService
+                .fetchNoteReactionSummary(game.id!, entry.key)
+                .then((summary) => MapEntry(entry.key, summary)),
+          ),
+        );
+
+        _reactionTypes = loadedTypes;
+        _reactionSummaries
+          ..clear()
+          ..addEntries(loadedSummaries);
+        _reactionDataLoaded = true;
+        _reactionDataError = null;
+      } catch (e) {
+        _reactionDataError = 'No se pudieron cargar las reacciones';
+        debugPrint('Error al cargar reacciones: $e');
+      } finally {
+        _reactionDataLoading = false;
+        if (mounted) {
+          setModalState(() {});
+        }
+      }
+    }
+
+    Future<void> refreshNoteReaction(
+      StateSetter setModalState,
+      int noteIndex,
+    ) async {
+      if (game.id == null) return;
+      final summary = await apiService.fetchNoteReactionSummary(game.id!, noteIndex);
+      _reactionSummaries[noteIndex] = summary;
+      if (mounted) {
+        setModalState(() {});
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -389,6 +473,15 @@ class _GameListScreenState extends State<GameListScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (!_reactionDataLoaded &&
+                  !_reactionDataLoading &&
+                  _reactionDataError == null)
+                  Builder(
+                    builder: (_) {
+                      loadReactionData(setModalState);
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 Center(
                   child: Container(
                     width: 40,
@@ -466,6 +559,16 @@ class _GameListScreenState extends State<GameListScreen> {
                 ),
                 const SizedBox(height: 24),
                 if (game.notes.isNotEmpty) ...[
+                  if (_reactionDataError != null) ...[
+                    Text(
+                      _reactionDataError!,
+                      style: GoogleFonts.nunito(
+                        color: Colors.white24,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Row(
                     children: [
                       Icon(Icons.timeline, color: aquaColor, size: 16),
@@ -488,6 +591,30 @@ class _GameListScreenState extends State<GameListScreen> {
                       game,
                       setModalState,
                       entry.key,
+                      _reactionTypes,
+                      _reactionSummaries[entry.key],
+                      (reaction) async {
+                        if (game.id == null) return;
+                        final summary = _reactionSummaries[entry.key];
+                        final selectedReactionId = summary?.myReaction?.reactionId;
+
+                        try {
+                          if (selectedReactionId == reaction.id) {
+                            await apiService.removeNoteReaction(game.id!, entry.key);
+                          } else {
+                            await apiService.reactToNote(
+                              gameId: game.id!,
+                              noteIndex: entry.key,
+                              reactionId: reaction.id,
+                            );
+                          }
+
+                          await refreshNoteReaction(setModalState, entry.key);
+                        } catch (e) {
+                          debugPrint('Error al reaccionar: $e');
+                          _showSoftMessage('No se pudo actualizar la reacción');
+                        }
+                      },
                     ),
                   ),
                 ] else
@@ -511,6 +638,102 @@ class _GameListScreenState extends State<GameListScreen> {
         ),
       ),
     );
+  }
+
+  void _shiftReactionSummariesAfterDelete(int deletedIndex) {
+    final shiftedEntries = <int, NoteReactionSummary>{};
+    for (final entry in _reactionSummaries.entries) {
+      if (entry.key == deletedIndex) continue;
+      final newIndex = entry.key > deletedIndex ? entry.key - 1 : entry.key;
+      shiftedEntries[newIndex] = entry.value.copyWith(noteIndex: newIndex);
+    }
+    _reactionSummaries = shiftedEntries;
+  }
+
+  Widget _buildReactionChip({
+    required ReactionType reaction,
+    required int count,
+    required int? selectedReactionId,
+    required VoidCallback onTap,
+  }) {
+    final bool isSelected = selectedReactionId == reaction.id;
+    final Color accentColor = _reactionColor(reaction.description);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? accentColor.withValues(alpha: 0.14)
+                : Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: isSelected
+                  ? accentColor.withValues(alpha: 0.45)
+                  : Colors.white10,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _reactionIcon(reaction.description),
+                size: 14,
+                color: isSelected ? accentColor : Colors.white54,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                count.toString(),
+                style: GoogleFonts.nunito(
+                  color: isSelected ? accentColor : Colors.white54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _reactionIcon(String description) {
+    switch (description) {
+      case 'REACTION_LIKE':
+        return Icons.thumb_up_alt_rounded;
+      case 'REACTION_LOVE':
+        return Icons.favorite_rounded;
+      case 'REACTION_HATE':
+        return Icons.thumb_down_alt_rounded;
+      case 'REACTION_SAD':
+        return Icons.sentiment_dissatisfied_rounded;
+      case 'REACTION_ANGRY':
+        return Icons.local_fire_department_rounded;
+      default:
+        return Icons.bolt_rounded;
+    }
+  }
+
+  Color _reactionColor(String description) {
+    switch (description) {
+      case 'REACTION_LIKE':
+        return aquaColor;
+      case 'REACTION_LOVE':
+        return Colors.pinkAccent;
+      case 'REACTION_HATE':
+        return Colors.redAccent;
+      case 'REACTION_SAD':
+        return Colors.amberAccent;
+      case 'REACTION_ANGRY':
+        return Colors.deepOrangeAccent;
+      default:
+        return Colors.white70;
+    }
   }
 
   // ─────────────────────────────────────────────
