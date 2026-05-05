@@ -21,4 +21,4 @@ echo "==> Limpiando y obteniendo dependencias..."
 flutter clean
 flutter pub get
 echo "==> Iniciando Build..."
-flutter build web --release --dart-define=API_BASE_URL=https://game-tracker-backend-a6ec.onrender.com
+flutter build web --release --dart-define=API_BASE_URL=https://game-tracker-back.onrender.com
