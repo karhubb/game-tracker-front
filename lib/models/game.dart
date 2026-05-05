@@ -6,12 +6,14 @@ class GameNote {
   final String? authorUsername;
   // Índice de la nota padre en la lista del juego. Null si es nota raíz.
   final int? parentIndex;
+  final bool deleted;
 
   GameNote({
     required this.content,
     required this.date,
     this.authorUsername,
     this.parentIndex,
+    this.deleted = false,
   });
 
   factory GameNote.fromJson(Map<String, dynamic> json) => GameNote(
@@ -19,6 +21,7 @@ class GameNote {
         date: DateTime.parse(json['date'] ?? DateTime.now().toIso8601String()),
         authorUsername: json['authorUsername'] as String?,
         parentIndex: json['parentIndex'] is int ? json['parentIndex'] as int : (json['parentIndex'] is num ? (json['parentIndex'] as num).toInt() : null),
+        deleted: json['deleted'] == true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -29,6 +32,7 @@ class GameNote {
             .toIso8601String(),
         'authorUsername': authorUsername,
         if (parentIndex != null) 'parentIndex': parentIndex,
+        'deleted': deleted,
       };
 }
 

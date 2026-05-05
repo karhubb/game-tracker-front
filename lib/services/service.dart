@@ -109,7 +109,7 @@ class ApiService {
   }
 
   // ── DELETE: Borrar nota ──────────────────────────────────────────────────
-  Future<void> deleteGameNote(int gameId, int noteIndex) async {
+  Future<Game> deleteGameNote(int gameId, int noteIndex) async {
     final response = await _sendAuthorizedRequest(
       (headers) => http.delete(
         Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
@@ -117,6 +117,11 @@ class ApiService {
       ),
     );
     _ensureSuccess(response, {200, 204}, 'Error al borrar la nota');
+    if (response.body.isEmpty) {
+      throw Exception('Error al borrar la nota: respuesta vacía');
+    }
+
+    return Game.fromJson(json.decode(response.body) as Map<String, dynamic>);
   }
 
   // ── DELETE: Borrar juego ─────────────────────────────────────────────────
