@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
@@ -127,10 +128,33 @@ class AuthService {
     }
   }
 
-  /// True si hay token guardado y no está vacío.
+  /// True si hay token guardado, no está vacío, y no ha expirado.
   bool isAuthenticated() {
     final token = getToken();
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) return false;
+    return !_isTokenExpired(token);
+  }
+
+  /// Decodifica el payload JWT y comprueba si ha expirado.
+  bool _isTokenExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      String payload = parts[1];
+      // Añadir padding base64 si es necesario
+      switch (payload.length % 4) {
+        case 2: payload += '=='; break;
+        case 3: payload += '='; break;
+      }
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final map = jsonDecode(decoded) as Map<String, dynamic>;
+      final exp = map['exp'];
+      if (exp == null) return true;
+      final expiry = DateTime.fromMillisecondsSinceEpoch((exp as int) * 1000);
+      return DateTime.now().isAfter(expiry);
+    } catch (_) {
+      return true; // Si no se puede decodificar, tratar como expirado
+    }
   }
 
   /// Cierra la sesión borrando token y datos del usuario.

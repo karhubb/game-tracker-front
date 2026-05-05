@@ -4,14 +4,14 @@ import '../models/game.dart';
 import '../models/reaction.dart';
 import 'auth_service.dart';
 import 'api_config.dart';
+import 'reaction_api_service.dart';
 
 class ApiService {
   static String get baseUrl => ApiConfig.gamesBaseUrl;
   static String get adminUsersUrl => '${ApiConfig.apiBaseUrl}/admin/users';
-  static String get reactionTypesUrl => '${ApiConfig.apiBaseUrl}/reactions';
-  static String get noteReactionsUrl => '${ApiConfig.apiBaseUrl}/notes/reactions';
 
   final AuthService _authService = AuthService();
+  late final ReactionApiService _reactionApi = ReactionApiService(_authService);
 
   /// Construye los headers con el Bearer token si hay sesión activa.
   /// Mismo patrón que _getHeaders() en TweetService de Tweeter.
@@ -26,10 +26,29 @@ class ApiService {
     return headers;
   }
 
+  Future<http.Response> _sendAuthorizedRequest(
+    Future<http.Response> Function(Map<String, String> headers) request, {
+    bool withBody = false,
+  }) async {
+    await _authService.init();
+    return request(_getHeaders(withBody: withBody));
+  }
+
+  void _ensureSuccess(
+    http.Response response,
+    Set<int> acceptedStatusCodes,
+    String errorMessage,
+  ) {
+    if (!acceptedStatusCodes.contains(response.statusCode)) {
+      throw Exception('$errorMessage (${response.statusCode})');
+    }
+  }
+
   // ── GET: Obtener todos ───────────────────────────────────────────────────
   Future<List<Game>> fetchGames() async {
-    await _authService.init();
-    final response = await http.get(Uri.parse(baseUrl), headers: _getHeaders());
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.get(Uri.parse(baseUrl), headers: headers),
+    );
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as List<dynamic>;
       return data.map((j) => Game.fromJson(j as Map<String, dynamic>)).toList();
@@ -39,121 +58,87 @@ class ApiService {
 
   // ── POST: Crear nuevo ────────────────────────────────────────────────────
   Future<void> createGame(Game game) async {
-    await _authService.init();
-    final response = await http.post(
-      Uri.parse(baseUrl),
-      headers: _getHeaders(withBody: true),
-      body: json.encode(game.toJson()),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.post(
+        Uri.parse(baseUrl),
+        headers: headers,
+        body: json.encode(game.toJson()),
+      ),
+      withBody: true,
     );
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception('Error al crear el juego (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 201}, 'Error al crear el juego');
   }
 
   // ── PUT: Actualizar juego ────────────────────────────────────────────────
   Future<void> updateGame(int id, Game game) async {
-    await _authService.init();
-    final response = await http.put(
-      Uri.parse('$baseUrl/$id'),
-      headers: _getHeaders(withBody: true),
-      body: json.encode(game.toJson()),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.put(
+        Uri.parse('$baseUrl/$id'),
+        headers: headers,
+        body: json.encode(game.toJson()),
+      ),
+      withBody: true,
     );
-    if (response.statusCode != 200 &&
-        response.statusCode != 201 &&
-        response.statusCode != 204) {
-      throw Exception('Error al actualizar el juego (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 201, 204}, 'Error al actualizar el juego');
   }
 
   // ── PUT: Editar nota ─────────────────────────────────────────────────────
   Future<void> updateGameNote(int gameId, int noteIndex, GameNote note) async {
-    await _authService.init();
-    final response = await http.put(
-      Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
-      headers: _getHeaders(withBody: true),
-      body: json.encode(note.toJson()),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.put(
+        Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
+        headers: headers,
+        body: json.encode(note.toJson()),
+      ),
+      withBody: true,
     );
-    if (response.statusCode != 200 &&
-        response.statusCode != 201 &&
-        response.statusCode != 204) {
-      throw Exception('Error al editar la nota (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 201, 204}, 'Error al editar la nota');
   }
 
   // ── POST: Agregar nota ────────────────────────────────────────────────────
   Future<void> addGameNote(int gameId, GameNote note) async {
-    await _authService.init();
-    final response = await http.post(
-      Uri.parse('$baseUrl/$gameId/notes'),
-      headers: _getHeaders(withBody: true),
-      body: json.encode(note.toJson()),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.post(
+        Uri.parse('$baseUrl/$gameId/notes'),
+        headers: headers,
+        body: json.encode(note.toJson()),
+      ),
+      withBody: true,
     );
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception('Error al crear la nota (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 201}, 'Error al crear la nota');
   }
 
   // ── DELETE: Borrar nota ──────────────────────────────────────────────────
   Future<void> deleteGameNote(int gameId, int noteIndex) async {
-    await _authService.init();
-    final response = await http.delete(
-      Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
-      headers: _getHeaders(),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.delete(
+        Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
+        headers: headers,
+      ),
     );
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Error al borrar la nota (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 204}, 'Error al borrar la nota');
   }
 
   // ── DELETE: Borrar juego ─────────────────────────────────────────────────
   Future<void> deleteGame(int id) async {
-    await _authService.init();
-    final response = await http.delete(
-      Uri.parse('$baseUrl/$id'),
-      headers: _getHeaders(),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.delete(
+        Uri.parse('$baseUrl/$id'),
+        headers: headers,
+      ),
     );
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Error al eliminar el juego (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 204}, 'Error al eliminar el juego');
   }
 
   Future<List<ReactionType>> fetchReactionTypes() async {
-    await _authService.init();
-    final response = await http.get(
-      Uri.parse(reactionTypesUrl),
-      headers: _getHeaders(),
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body) as List<dynamic>;
-      return data
-          .whereType<Map<String, dynamic>>()
-          .map(ReactionType.fromJson)
-          .toList();
-    }
-
-    throw Exception('Error al cargar reacciones (${response.statusCode})');
+    return _reactionApi.fetchReactionTypes();
   }
 
   Future<NoteReactionSummary> fetchNoteReactionSummary(
     int gameId,
     int noteIndex,
   ) async {
-    await _authService.init();
-    final response = await http.get(
-      Uri.parse('$noteReactionsUrl/games/$gameId/notes/$noteIndex'),
-      headers: _getHeaders(),
-    );
-
-    if (response.statusCode == 200) {
-      return NoteReactionSummary.fromJson(
-        json.decode(response.body) as Map<String, dynamic>,
-      );
-    }
-
-    throw Exception(
-      'Error al cargar el resumen de reacciones (${response.statusCode})',
-    );
+    return _reactionApi.fetchNoteReactionSummary(gameId, noteIndex);
   }
 
   Future<void> reactToNote({
@@ -161,30 +146,15 @@ class ApiService {
     required int noteIndex,
     required int reactionId,
   }) async {
-    await _authService.init();
-    final response = await http.post(
-      Uri.parse('$noteReactionsUrl/games/$gameId/notes/$noteIndex'),
-      headers: _getHeaders(withBody: true),
-      body: json.encode({'reactionId': reactionId}),
+    await _reactionApi.reactToNote(
+      gameId: gameId,
+      noteIndex: noteIndex,
+      reactionId: reactionId,
     );
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception(
-        'Error al reaccionar a la opinión (${response.statusCode})',
-      );
-    }
   }
 
   Future<void> removeNoteReaction(int gameId, int noteIndex) async {
-    await _authService.init();
-    final response = await http.delete(
-      Uri.parse('$noteReactionsUrl/games/$gameId/notes/$noteIndex'),
-      headers: _getHeaders(),
-    );
-
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Error al quitar la reacción (${response.statusCode})');
-    }
+    await _reactionApi.removeNoteReaction(gameId, noteIndex);
   }
 
   // ── ADMIN: Crear usuario con rol ────────────────────────────────────────
@@ -194,18 +164,19 @@ class ApiService {
     required String password,
     required String role,
   }) async {
-    await _authService.init();
-    final response = await http.post(
-      Uri.parse(adminUsersUrl),
-      headers: _getHeaders(withBody: true),
-      body: json.encode({
-        'username': username,
-        'email': email,
-        'password': password,
-        'roles': [role],
-      }),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.post(
+        Uri.parse(adminUsersUrl),
+        headers: headers,
+        body: json.encode({
+          'username': username,
+          'email': email,
+          'password': password,
+          'roles': [role],
+        }),
+      ),
+      withBody: true,
     );
-
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(
         'Error al crear usuario (${response.statusCode}): ${response.body}',
@@ -215,10 +186,8 @@ class ApiService {
 
   // ── ADMIN: Listar usuarios ──────────────────────────────────────────────
   Future<List<Map<String, dynamic>>> fetchUsersForAdmin() async {
-    await _authService.init();
-    final response = await http.get(
-      Uri.parse(adminUsersUrl),
-      headers: _getHeaders(),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.get(Uri.parse(adminUsersUrl), headers: headers),
     );
 
     if (response.statusCode == 200) {
@@ -241,14 +210,12 @@ class ApiService {
 
   // ── ADMIN: Eliminar usuario ─────────────────────────────────────────────
   Future<void> deleteUserByAdmin(int userId) async {
-    await _authService.init();
-    final response = await http.delete(
-      Uri.parse('$adminUsersUrl/$userId'),
-      headers: _getHeaders(),
+    final response = await _sendAuthorizedRequest(
+      (headers) => http.delete(
+        Uri.parse('$adminUsersUrl/$userId'),
+        headers: headers,
+      ),
     );
-
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Error al eliminar usuario (${response.statusCode})');
-    }
+    _ensureSuccess(response, {200, 204}, 'Error al eliminar usuario');
   }
 }

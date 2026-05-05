@@ -5,6 +5,7 @@ import 'package:game_tracker/services/auth_service.dart';
 import 'package:game_tracker/models/game.dart';
 import 'package:game_tracker/models/reaction.dart';
 import 'package:game_tracker/models/user.dart';
+import 'package:game_tracker/controllers/reaction_timeline_controller.dart';
 import 'package:game_tracker/screens/game_form_screen.dart';
 import 'login_screen.dart';
 
@@ -23,6 +24,7 @@ class GameListScreen extends StatefulWidget {
 class _GameListScreenState extends State<GameListScreen> {
   final ApiService apiService = ApiService();
   final AuthService _authService = AuthService();
+  late final ReactionTimelineController _reactionController;
 
   Future<List<Game>>? _gamesFuture;
   final TextEditingController _searchController = TextEditingController();
@@ -30,12 +32,6 @@ class _GameListScreenState extends State<GameListScreen> {
   // Usuario en sesión — null si no hay sesión (nunca debería pasar gracias
   // al AuthGate, pero se mantiene como guardia defensiva)
   User? _currentUser;
-
-  Map<int, NoteReactionSummary> _reactionSummaries = {};
-  List<ReactionType> _reactionTypes = [];
-  bool _reactionDataLoading = false;
-  bool _reactionDataLoaded = false;
-  String? _reactionDataError;
 
   // ── Colores del diseño original — sin tocar ──────────────────────────────
   final Color aquaColor = const Color(0xFF40E0D0);
@@ -48,7 +44,15 @@ class _GameListScreenState extends State<GameListScreen> {
   @override
   void initState() {
     super.initState();
+    _reactionController = ReactionTimelineController(apiService);
     _initSession();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _reactionController.dispose();
+    super.dispose();
   }
 
   Future<void> _initSession() async {
@@ -114,6 +118,21 @@ class _GameListScreenState extends State<GameListScreen> {
       (_) => false,
     );
   }
+
+  /// Maneja errores 401: cierra sesión y redirige al login.
+  Future<void> _handleAuthError() async {
+    await _authService.logout();
+    if (!mounted) return;
+    _showSoftMessage('Sesión expirada. Vuelve a iniciar sesión.');
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+  }
+
+  bool _is401(Object e) => e.toString().contains('401');
 
   // ─────────────────────────────────────────────
   //  HELPERS DE UI (sin cambios de estilo)
@@ -190,6 +209,105 @@ class _GameListScreenState extends State<GameListScreen> {
     );
   }
 
+  List<MapEntry<int, GameNote>> _childNotesFor(Game game, int? parentIndex) {
+    return game.notes.asMap().entries
+        .where((entry) => entry.value.parentIndex == parentIndex)
+        .toList();
+  }
+
+  List<int> _collectThreadIndexes(List<GameNote> notes, int rootIndex) {
+    final removed = <int>[rootIndex];
+    for (var i = rootIndex + 1; i < notes.length; i++) {
+      if (_isDescendantIndex(notes, i, rootIndex)) {
+        removed.add(i);
+      }
+    }
+    return removed;
+  }
+
+  bool _isDescendantIndex(List<GameNote> notes, int candidateIndex, int ancestorIndex) {
+    int? parent = notes[candidateIndex].parentIndex;
+    while (parent != null) {
+      if (parent == ancestorIndex) return true;
+      if (parent < 0 || parent >= notes.length) return false;
+      parent = notes[parent].parentIndex;
+    }
+    return false;
+  }
+
+  List<Widget> _buildThreadedNotes(
+    Game game,
+    StateSetter setModalState,
+    List<ReactionType> reactionTypes,
+  ) {
+    final widgets = <Widget>[];
+
+    final roots = _childNotesFor(game, null).reversed.toList();
+
+    for (final root in roots) {
+      widgets.addAll(
+        _buildNoteBranch(
+          game: game,
+          setModalState: setModalState,
+          reactionTypes: reactionTypes,
+          noteIndex: root.key,
+          depth: 0,
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  List<Widget> _buildNoteBranch({
+    required Game game,
+    required StateSetter setModalState,
+    required List<ReactionType> reactionTypes,
+    required int noteIndex,
+    required int depth,
+  }) {
+    final note = game.notes[noteIndex];
+    final branch = <Widget>[
+      _buildTimelineNote(
+        note,
+        game,
+        setModalState,
+        noteIndex,
+        depth,
+        reactionTypes,
+        _reactionController.summaryFor(noteIndex),
+        (reaction) async {
+          if (game.id == null) return;
+
+          try {
+            await _reactionController.toggleReaction(
+              gameId: game.id!,
+              noteIndex: noteIndex,
+              reaction: reaction,
+            );
+          } catch (e) {
+            debugPrint('Error al reaccionar: $e');
+            _showSoftMessage('No se pudo actualizar la reacción');
+          }
+        },
+      ),
+    ];
+
+    for (final child in _childNotesFor(game, noteIndex)) {
+      branch.addAll(
+        _buildNoteBranch(
+          game: game,
+          setModalState: setModalState,
+          reactionTypes: reactionTypes,
+          noteIndex: child.key,
+          depth: depth + 1,
+        ),
+      );
+    }
+
+    return branch;
+  }
+
   // ─────────────────────────────────────────────
   //  TIMELINE DE NOTAS con permisos condicionales
   // ─────────────────────────────────────────────
@@ -199,6 +317,7 @@ class _GameListScreenState extends State<GameListScreen> {
     Game game,
     StateSetter setModalState,
     int noteIndex,
+    int depth,
     List<ReactionType> reactionTypes,
     NoteReactionSummary? reactionSummary,
     Future<void> Function(ReactionType reaction) onReactionTap,
@@ -210,110 +329,226 @@ class _GameListScreenState extends State<GameListScreen> {
     final bool showEdit = _canEditNote(note);
     final bool showDelete = _canDeleteNote(note);
 
+    final leftOffset = (depth * 18).toDouble();
+    final isReply = depth > 0;
+    final String? parentAuthor = isReply && note.parentIndex != null && note.parentIndex! >= 0 && note.parentIndex! < game.notes.length
+      ? game.notes[note.parentIndex!].authorUsername
+      : null;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Icon(Icons.chat_bubble_rounded, color: aquaColor, size: 14),
-              Container(
-                width: 1,
-                height: 30,
-                color: aquaColor.withValues(alpha: 0.15),
-                margin: const EdgeInsets.only(top: 4),
-              ),
-            ],
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      padding: EdgeInsets.only(bottom: 14, left: leftOffset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: isReply ? 0.025 : 0.035),
+          borderRadius: BorderRadius.circular(18),
+          border: isReply
+              ? Border(
+                  left: BorderSide(
+                    color: aquaColor.withValues(alpha: 0.35),
+                    width: 2,
+                  ),
+                )
+              : null,
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
               children: [
-                Row(
-                  children: [
+                Icon(Icons.chat_bubble_rounded, color: aquaColor, size: 14),
+                Container(
+                  width: 1,
+                  height: 30,
+                  color: aquaColor.withValues(alpha: 0.15),
+                  margin: const EdgeInsets.only(top: 4),
+                ),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '@${note.authorUsername ?? 'desconocido'}',
+                        style: GoogleFonts.nunito(
+                          color: aquaColor.withValues(alpha: 0.7),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        dateStr,
+                        style: GoogleFonts.nunito(
+                          color: Colors.white24,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isReply) ...[
+                    const SizedBox(height: 8),
                     Text(
-                      '@${note.authorUsername ?? 'desconocido'}',
+                      'Respondiendo a @${parentAuthor ?? 'desconocido'}',
                       style: GoogleFonts.nunito(
-                        color: aquaColor.withValues(alpha: 0.7),
+                        color: aquaColor.withValues(alpha: 0.55),
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      dateStr,
-                      style: GoogleFonts.nunito(
-                        color: Colors.white24,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w300,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  note.content,
-                  style: GoogleFonts.nunito(
-                    color: Colors.white60,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (reactionTypes.isNotEmpty)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: reactionTypes
-                        .map(
-                          (reaction) => _buildReactionChip(
-                            reaction: reaction,
-                            count: reactionSummary?.countFor(reaction.description) ?? 0,
-                            selectedReactionId:
-                                reactionSummary?.myReaction?.reactionId,
-                            onTap: () => onReactionTap(reaction),
-                          ),
-                        )
-                        .toList(),
-                  )
-                else
+                  const SizedBox(height: 3),
                   Text(
-                    'Cargando reacciones...',
+                    note.content,
                     style: GoogleFonts.nunito(
-                      color: Colors.white24,
-                      fontSize: 10,
+                      color: Colors.white60,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      height: 1.4,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 10),
+                  if (reactionTypes.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: reactionTypes
+                          .map(
+                            (reaction) => _buildReactionChip(
+                              reaction: reaction,
+                              count: reactionSummary?.countFor(reaction.description) ?? 0,
+                              selectedReactionId:
+                                  reactionSummary?.myReaction?.reactionId,
+                              onTap: () => onReactionTap(reaction),
+                            ),
+                          )
+                          .toList(),
+                    )
+                  else
+                    Text(
+                      'Cargando reacciones...',
+                      style: GoogleFonts.nunito(
+                        color: Colors.white24,
+                        fontSize: 10,
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  if (_canPostNote)
+                    TextButton(
+                      onPressed: () async {
+                        final TextEditingController replyCtrl = TextEditingController();
+                        await showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A1A),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            title: Text(
+                              'Responder',
+                              style: GoogleFonts.nunito(
+                                color: aquaColor,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            content: TextField(
+                              controller: replyCtrl,
+                              maxLines: 3,
+                              style: GoogleFonts.nunito(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: 'Escribe tu respuesta...',
+                                hintStyle: GoogleFonts.nunito(color: Colors.white24),
+                                filled: true,
+                                fillColor: const Color(0xFF111111),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  'Cancelar',
+                                  style: GoogleFonts.nunito(
+                                    color: Colors.white54,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: aquaColor,
+                                  foregroundColor: Colors.black,
+                                ),
+                                onPressed: () async {
+                                  final content = replyCtrl.text.trim();
+                                  if (content.isEmpty) return;
+                                  final reply = GameNote(
+                                    content: content,
+                                    date: DateTime.now(),
+                                    parentIndex: noteIndex,
+                                  );
+                                  try {
+                                    await apiService.addGameNote(game.id!, reply);
+                                    setModalState(() => game.notes.add(reply));
+                                    if (ctx.mounted) Navigator.pop(ctx);
+                                    _refresh();
+                                    _showSoftMessage('Respuesta añadida');
+                                  } catch (e) {
+                                    debugPrint('Error al crear respuesta: $e');
+                                    if (_is401(e)) {
+                                      await _handleAuthError();
+                                    } else {
+                                      _showSoftMessage('No se pudo publicar la respuesta');
+                                    }
+                                  }
+                                },
+                                child: Text('Responder', style: GoogleFonts.nunito(fontWeight: FontWeight.w500)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: Text('Responder', style: GoogleFonts.nunito(color: aquaColor, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ),
+                ],
+              ),
             ),
-          ),
-          // Botón borrar: solo si tiene permiso
-          if (showDelete)
-            GestureDetector(
-              onTap: () async {
-                try {
-                  await apiService.deleteGameNote(game.id!, noteIndex);
-                  setModalState(() => game.notes.removeAt(noteIndex));
-                  _shiftReactionSummariesAfterDelete(noteIndex);
-                  _refresh();
-                  _showSoftMessage("Opinión eliminada");
-                } catch (e) {
-                  debugPrint("Error al borrar nota: $e");
-                }
-              },
-              child: _noteIconBtn(icon: Icons.close_rounded),
-            ),
-          // Botón editar: solo si tiene permiso
-          if (showEdit)
-            GestureDetector(
-              onTap: () => _editNote(game, noteIndex, note, setModalState),
-              child: _noteIconBtn(icon: Icons.edit_rounded),
-            ),
-        ],
+            if (showDelete)
+              GestureDetector(
+                onTap: () async {
+                  try {
+                    await apiService.deleteGameNote(game.id!, noteIndex);
+                    final removedIndexes = _collectThreadIndexes(game.notes, noteIndex);
+                    setModalState(() {
+                      for (final idx in removedIndexes.reversed) {
+                        game.notes.removeAt(idx);
+                      }
+                    });
+                    _reactionController.shiftAfterDelete(noteIndex);
+                    _refresh();
+                    _showSoftMessage("Opinión eliminada");
+                  } catch (e) {
+                    debugPrint("Error al borrar nota: $e");
+                  }
+                },
+                child: _noteIconBtn(icon: Icons.close_rounded),
+              ),
+            if (showEdit)
+              GestureDetector(
+                onTap: () => _editNote(game, noteIndex, note, setModalState),
+                child: _noteIconBtn(icon: Icons.edit_rounded),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -406,53 +641,11 @@ class _GameListScreenState extends State<GameListScreen> {
   // ─────────────────────────────────────────────
 
   void _showGameDetails(Game game) {
-    _reactionSummaries = {};
-    _reactionTypes = [];
-    _reactionDataLoading = false;
-    _reactionDataLoaded = false;
-    _reactionDataError = null;
-
-    Future<void> loadReactionData(StateSetter setModalState) async {
-      if (_reactionDataLoading || _reactionDataLoaded || game.id == null) return;
-      _reactionDataLoading = true;
-      try {
-        final loadedTypes = await apiService.fetchReactionTypes();
-        final loadedSummaries = await Future.wait(
-          game.notes.asMap().entries.map(
-            (entry) => apiService
-                .fetchNoteReactionSummary(game.id!, entry.key)
-                .then((summary) => MapEntry(entry.key, summary)),
-          ),
-        );
-
-        _reactionTypes = loadedTypes;
-        _reactionSummaries
-          ..clear()
-          ..addEntries(loadedSummaries);
-        _reactionDataLoaded = true;
-        _reactionDataError = null;
-      } catch (e) {
-        _reactionDataError = 'No se pudieron cargar las reacciones';
-        debugPrint('Error al cargar reacciones: $e');
-      } finally {
-        _reactionDataLoading = false;
-        if (mounted) {
-          setModalState(() {});
-        }
-      }
-    }
-
-    Future<void> refreshNoteReaction(
-      StateSetter setModalState,
-      int noteIndex,
-    ) async {
-      if (game.id == null) return;
-      final summary = await apiService.fetchNoteReactionSummary(game.id!, noteIndex);
-      _reactionSummaries[noteIndex] = summary;
-      if (mounted) {
-        setModalState(() {});
-      }
-    }
+    _reactionController.prepareForGame(game);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _reactionController.ensureLoaded(game);
+    });
 
     showModalBottomSheet(
       context: context,
@@ -462,192 +655,149 @@ class _GameListScreenState extends State<GameListScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.85,
-          maxChildSize: 0.95,
-          minChildSize: 0.5,
-          builder: (_, scrollController) => SingleChildScrollView(
-            controller: scrollController,
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!_reactionDataLoaded &&
-                  !_reactionDataLoading &&
-                  _reactionDataError == null)
-                  Builder(
-                    builder: (_) {
-                      loadReactionData(setModalState);
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(2),
+        builder: (context, setModalState) => AnimatedBuilder(
+          animation: _reactionController,
+          builder: (context, _) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.85,
+            maxChildSize: 0.95,
+            minChildSize: 0.5,
+            builder: (_, scrollController) => SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.network(
-                      game.coverUrl,
-                      height: 200,
-                      width: 150,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, error, stackTrace) => Container(
+                  const SizedBox(height: 20),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.network(
+                        game.coverUrl,
                         height: 200,
                         width: 150,
-                        color: Colors.white10,
-                        child: const Icon(
-                          Icons.broken_image,
-                          color: Colors.white24,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, error, stackTrace) => Container(
+                          height: 200,
+                          width: 150,
+                          color: Colors.white10,
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.white24,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 15),
-                Center(
-                  child: Text(
-                    game.name,
-                    style: GoogleFonts.rajdhani(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return Icon(
-                        index < game.rating
-                            ? Icons.star_rounded
-                            : Icons.star_outline_rounded,
-                        color: aquaColor,
-                        size: 22,
-                      );
-                    }),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Divider(color: Colors.white10, height: 1),
-                const SizedBox(height: 20),
-                _buildInfoRow(
-                  "Franquicia",
-                  game.franchise.isEmpty ? "No definida" : game.franchise,
-                ),
-                _buildInfoRow("Categoría", game.category),
-                _buildInfoRow(
-                  "Estado",
-                  game.played ? "Jugado" : "Pendiente",
-                  valueColor: game.played ? stateGreenColor : Colors.white54,
-                  valueIcon: game.played
-                      ? Icons.task_alt_rounded
-                      : Icons.radio_button_unchecked,
-                ),
-                const SizedBox(height: 24),
-                if (game.notes.isNotEmpty) ...[
-                  if (_reactionDataError != null) ...[
-                    Text(
-                      _reactionDataError!,
-                      style: GoogleFonts.nunito(
-                        color: Colors.white24,
-                        fontSize: 11,
+                  const SizedBox(height: 15),
+                  Center(
+                    child: Text(
+                      game.name,
+                      style: GoogleFonts.rajdhani(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 10),
-                  ],
-                  Row(
-                    children: [
-                      Icon(Icons.timeline, color: aquaColor, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Timeline · ${game.notes.length} anotaciones",
-                        style: GoogleFonts.nunito(
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return Icon(
+                          index < game.rating
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
                           color: aquaColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          letterSpacing: 0.5,
+                          size: 22,
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Divider(color: Colors.white10, height: 1),
+                  const SizedBox(height: 20),
+                  _buildInfoRow(
+                    "Franquicia",
+                    game.franchise.isEmpty ? "No definida" : game.franchise,
+                  ),
+                  _buildInfoRow("Categoría", game.category),
+                  _buildInfoRow(
+                    "Estado",
+                    game.played ? "Jugado" : "Pendiente",
+                    valueColor: game.played ? stateGreenColor : Colors.white54,
+                    valueIcon: game.played
+                        ? Icons.task_alt_rounded
+                        : Icons.radio_button_unchecked,
+                  ),
+                  const SizedBox(height: 24),
+                  if (game.notes.isNotEmpty) ...[
+                    if (_reactionController.error != null) ...[
+                      Text(
+                        _reactionController.error!,
+                        style: GoogleFonts.nunito(
+                          color: Colors.white24,
+                          fontSize: 11,
                         ),
                       ),
+                      const SizedBox(height: 10),
                     ],
-                  ),
-                  const SizedBox(height: 14),
-                  ...game.notes.asMap().entries.toList().reversed.map(
-                    (entry) => _buildTimelineNote(
-                      entry.value,
+                    Row(
+                      children: [
+                        Icon(Icons.timeline, color: aquaColor, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Timeline · ${game.notes.length} anotaciones",
+                          style: GoogleFonts.nunito(
+                            color: aquaColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    ..._buildThreadedNotes(
                       game,
                       setModalState,
-                      entry.key,
-                      _reactionTypes,
-                      _reactionSummaries[entry.key],
-                      (reaction) async {
-                        if (game.id == null) return;
-                        final summary = _reactionSummaries[entry.key];
-                        final selectedReactionId = summary?.myReaction?.reactionId;
-
-                        try {
-                          if (selectedReactionId == reaction.id) {
-                            await apiService.removeNoteReaction(game.id!, entry.key);
-                          } else {
-                            await apiService.reactToNote(
-                              gameId: game.id!,
-                              noteIndex: entry.key,
-                              reactionId: reaction.id,
-                            );
-                          }
-
-                          await refreshNoteReaction(setModalState, entry.key);
-                        } catch (e) {
-                          debugPrint('Error al reaccionar: $e');
-                          _showSoftMessage('No se pudo actualizar la reacción');
-                        }
-                      },
+                      _reactionController.reactionTypes,
                     ),
-                  ),
-                ] else
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        "Sin anotaciones aún",
-                        style: GoogleFonts.nunito(
-                          color: aquaColor.withValues(alpha: 0.35),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w300,
+                  ] else
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          "Sin anotaciones aún",
+                          style: GoogleFonts.nunito(
+                            color: aquaColor.withValues(alpha: 0.35),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w300,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                const SizedBox(height: 30),
-              ],
+                  const SizedBox(height: 30),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
-  }
-
-  void _shiftReactionSummariesAfterDelete(int deletedIndex) {
-    final shiftedEntries = <int, NoteReactionSummary>{};
-    for (final entry in _reactionSummaries.entries) {
-      if (entry.key == deletedIndex) continue;
-      final newIndex = entry.key > deletedIndex ? entry.key - 1 : entry.key;
-      shiftedEntries[newIndex] = entry.value.copyWith(noteIndex: newIndex);
-    }
-    _reactionSummaries = shiftedEntries;
   }
 
   Widget _buildReactionChip({
@@ -713,7 +863,7 @@ class _GameListScreenState extends State<GameListScreen> {
       case 'REACTION_SAD':
         return Icons.sentiment_dissatisfied_rounded;
       case 'REACTION_ANGRY':
-        return Icons.local_fire_department_rounded;
+        return Icons.mood_bad_rounded;
       default:
         return Icons.bolt_rounded;
     }
@@ -730,7 +880,7 @@ class _GameListScreenState extends State<GameListScreen> {
       case 'REACTION_SAD':
         return Colors.amberAccent;
       case 'REACTION_ANGRY':
-        return Colors.deepOrangeAccent;
+        return const Color(0xFFFF8A65);
       default:
         return Colors.white70;
     }
@@ -888,11 +1038,18 @@ class _GameListScreenState extends State<GameListScreen> {
                     );
                     try {
                       await apiService.addGameNote(game.id!, note);
-                      setDialogState(() => saved = true);
+                      setDialogState(() {
+                        saved = true;
+                        game.notes.add(note);
+                      });
                       _refresh();
                     } catch (e) {
-                      _showSoftMessage('No se pudo guardar la opinión');
                       debugPrint("Error al guardar: $e");
+                      if (_is401(e)) {
+                        await _handleAuthError();
+                      } else {
+                        _showSoftMessage('No se pudo guardar la opinión');
+                      }
                     }
                   }
                 },

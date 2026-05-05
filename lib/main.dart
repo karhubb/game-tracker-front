@@ -3,6 +3,8 @@ import 'screens/login_screen.dart';
 import 'screens/screen.dart';
 import 'services/auth_service.dart';
 
+const Color _aquaAccent = Color(0xFF40E0D0);
+
 void main() {
   runApp(const MyApp());
 }
@@ -18,10 +20,25 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
+          seedColor: _aquaAccent,
           brightness: Brightness.dark,
+          surface: const Color(0xFF161616),
         ),
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.black,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF1A1A1A),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide.none,
+          ),
+        ),
       ),
       // AuthGate decide qué pantalla mostrar primero
       home: const AuthGate(),

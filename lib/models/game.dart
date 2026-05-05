@@ -4,17 +4,21 @@ class GameNote {
   // Autor de la opinión — se guarda al crear y se usa para
   // mostrar quién publicó y condicionar los botones editar/borrar.
   final String? authorUsername;
+  // Índice de la nota padre en la lista del juego. Null si es nota raíz.
+  final int? parentIndex;
 
   GameNote({
     required this.content,
     required this.date,
     this.authorUsername,
+    this.parentIndex,
   });
 
   factory GameNote.fromJson(Map<String, dynamic> json) => GameNote(
         content: json['content'] ?? '',
         date: DateTime.parse(json['date'] ?? DateTime.now().toIso8601String()),
         authorUsername: json['authorUsername'] as String?,
+        parentIndex: json['parentIndex'] is int ? json['parentIndex'] as int : (json['parentIndex'] is num ? (json['parentIndex'] as num).toInt() : null),
       );
 
   Map<String, dynamic> toJson() => {
@@ -24,6 +28,7 @@ class GameNote {
                 date.hour, date.minute, date.second)
             .toIso8601String(),
         'authorUsername': authorUsername,
+        if (parentIndex != null) 'parentIndex': parentIndex,
       };
 }
 

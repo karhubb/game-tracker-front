@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConfig {
-  // URL local para desarrollo
-  static const String _defaultUrl = 'http://localhost:8080';
+  // Estrategia de entorno: por defecto apuntamos a localhost para desarrollo,
+  // y dejamos Render comentado como fallback de producción para volver a activarlo luego.
+  // static const String _defaultUrl = 'http://localhost:8080';
   // URL de Render para producción:
-  // static const String _defaultUrl = 'https://game-tracker-backend-a6ec.onrender.com';
+  static const String _defaultUrl = 'https://game-tracker-backend-a6ec.onrender.com';
 
   static String get baseUrl {
     const fromEnv = String.fromEnvironment('API_BASE_URL');

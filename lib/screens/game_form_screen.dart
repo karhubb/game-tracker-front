@@ -136,25 +136,38 @@ class _GameFormScreenState extends State<GameFormScreen> {
 
   void _saveGame() async {
     if (_formKey.currentState!.validate()) {
-      final coverUrl = await _uploadToCloudinary();
-      final nuevoJuego = Game(
-        id: widget.game?.id,
-        name: _nameController.text,
-        coverUrl: coverUrl ?? "",
-        franchise: _franchiseController.text,
-        category: _categoryController.text,
-        rating: _rating,
-        played: _played,
-        notes: _notes,
-      );
+      try {
+        final coverUrl = await _uploadToCloudinary();
+        final nuevoJuego = Game(
+          id: widget.game?.id,
+          name: _nameController.text,
+          coverUrl: coverUrl ?? "",
+          franchise: _franchiseController.text,
+          category: _categoryController.text,
+          rating: _rating,
+          played: _played,
+          notes: _notes,
+        );
 
-      if (widget.game == null) {
-        await _apiService.createGame(nuevoJuego);
-      } else {
-        await _apiService.updateGame(widget.game!.id!, nuevoJuego);
+        if (widget.game == null) {
+          await _apiService.createGame(nuevoJuego);
+        } else {
+          await _apiService.updateGame(widget.game!.id!, nuevoJuego);
+        }
+        if (!mounted) return;
+        Navigator.pop(context, true);
+      } catch (e) {
+        if (!mounted) return;
+        final msg = e.toString().contains('401')
+            ? 'Sesión expirada. Vuelve a iniciar sesión.'
+            : 'Error al guardar el juego. Inténtalo de nuevo.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg, style: GoogleFonts.nunito()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
-      if (!mounted) return;
-      Navigator.pop(context, true);
     }
   }
 
