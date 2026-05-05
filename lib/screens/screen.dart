@@ -22,6 +22,9 @@ class GameListScreen extends StatefulWidget {
 }
 
 class _GameListScreenState extends State<GameListScreen> {
+  static const String _deletedPlaceholder =
+      'El contenido de este comentario se ha eliminado.';
+
   final ApiService apiService = ApiService();
   final AuthService _authService = AuthService();
   late final ReactionTimelineController _reactionController;
@@ -85,9 +88,13 @@ class _GameListScreenState extends State<GameListScreen> {
 
   /// ¿Puede el usuario actual editar una opinión?
   /// El usuario puede editar sus propias notas; el admin puede editar cualquiera.
+  bool _isDeletedNote(GameNote note) {
+    return note.deleted || note.content.trim() == _deletedPlaceholder;
+  }
+
   bool _canEditNote(GameNote note) {
     if (_currentUser == null) return false;
-    if (note.deleted) return false;
+    if (_isDeletedNote(note)) return false;
     if (_isAdmin) return true;
     // Si la nota guarda el autor, comparar. Si no (notas legacy sin autor),
     // solo el admin puede tocarlas.
@@ -99,7 +106,7 @@ class _GameListScreenState extends State<GameListScreen> {
   /// Admin y moderador pueden borrar cualquiera; usuario solo la suya.
   bool _canDeleteNote(GameNote note) {
     if (_currentUser == null) return false;
-    if (note.deleted) return false;
+    if (_isDeletedNote(note)) return false;
     if (_isAdmin || _isModerator) return true;
     if (note.authorUsername == null) return false;
     return note.authorUsername == _currentUser!.username;
@@ -308,7 +315,7 @@ class _GameListScreenState extends State<GameListScreen> {
         "${note.date.day}/${note.date.month}/${note.date.year} "
         "${note.date.hour}:${note.date.minute.toString().padLeft(2, '0')}";
 
-    final bool isDeleted = note.deleted;
+    final bool isDeleted = _isDeletedNote(note);
     final bool showEdit = _canEditNote(note);
     final bool showDelete = _canDeleteNote(note);
 
@@ -390,7 +397,7 @@ class _GameListScreenState extends State<GameListScreen> {
                   const SizedBox(height: 3),
                   Text(
                     isDeleted
-                        ? 'El contenido de este comentario se ha eliminado.'
+                        ? _deletedPlaceholder
                         : note.content,
                     style: GoogleFonts.nunito(
                       color: isDeleted ? Colors.white38 : Colors.white60,
@@ -426,87 +433,87 @@ class _GameListScreenState extends State<GameListScreen> {
                           fontSize: 10,
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    if (_canPostNote)
-                      TextButton(
-                        onPressed: () async {
-                          final TextEditingController replyCtrl = TextEditingController();
-                          await showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF1A1A1A),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              title: Text(
-                                'Responder',
-                                style: GoogleFonts.nunito(
-                                  color: aquaColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              content: TextField(
-                                controller: replyCtrl,
-                                maxLines: 3,
-                                style: GoogleFonts.nunito(color: Colors.white),
-                                decoration: InputDecoration(
-                                  hintText: 'Escribe tu respuesta...',
-                                  hintStyle: GoogleFonts.nunito(color: Colors.white24),
-                                  filled: true,
-                                  fillColor: const Color(0xFF111111),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: Text(
-                                    'Cancelar',
-                                    style: GoogleFonts.nunito(
-                                      color: Colors.white54,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: aquaColor,
-                                    foregroundColor: Colors.black,
-                                  ),
-                                  onPressed: () async {
-                                    final content = replyCtrl.text.trim();
-                                    if (content.isEmpty) return;
-                                    final reply = GameNote(
-                                      content: content,
-                                      date: DateTime.now(),
-                                      parentIndex: noteIndex,
-                                    );
-                                    try {
-                                      await apiService.addGameNote(game.id!, reply);
-                                      setModalState(() => game.notes.add(reply));
-                                      if (ctx.mounted) Navigator.pop(ctx);
-                                      _refresh();
-                                      _showSoftMessage('Respuesta añadida');
-                                    } catch (e) {
-                                      debugPrint('Error al crear respuesta: $e');
-                                      if (_is401(e)) {
-                                        await _handleAuthError();
-                                      } else {
-                                        _showSoftMessage('No se pudo publicar la respuesta');
-                                      }
-                                    }
-                                  },
-                                  child: Text('Responder', style: GoogleFonts.nunito(fontWeight: FontWeight.w500)),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        child: Text('Responder', style: GoogleFonts.nunito(color: aquaColor, fontWeight: FontWeight.w600, fontSize: 13)),
-                      ),
                   ],
+                  const SizedBox(height: 8),
+                  if (_canPostNote)
+                    TextButton(
+                      onPressed: () async {
+                        final TextEditingController replyCtrl = TextEditingController();
+                        await showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A1A),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            title: Text(
+                              'Responder',
+                              style: GoogleFonts.nunito(
+                                color: aquaColor,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            content: TextField(
+                              controller: replyCtrl,
+                              maxLines: 3,
+                              style: GoogleFonts.nunito(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: 'Escribe tu respuesta...',
+                                hintStyle: GoogleFonts.nunito(color: Colors.white24),
+                                filled: true,
+                                fillColor: const Color(0xFF111111),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  'Cancelar',
+                                  style: GoogleFonts.nunito(
+                                    color: Colors.white54,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: aquaColor,
+                                  foregroundColor: Colors.black,
+                                ),
+                                onPressed: () async {
+                                  final content = replyCtrl.text.trim();
+                                  if (content.isEmpty) return;
+                                  final reply = GameNote(
+                                    content: content,
+                                    date: DateTime.now(),
+                                    parentIndex: noteIndex,
+                                  );
+                                  try {
+                                    await apiService.addGameNote(game.id!, reply);
+                                    setModalState(() => game.notes.add(reply));
+                                    if (ctx.mounted) Navigator.pop(ctx);
+                                    _refresh();
+                                    _showSoftMessage('Respuesta añadida');
+                                  } catch (e) {
+                                    debugPrint('Error al crear respuesta: $e');
+                                    if (_is401(e)) {
+                                      await _handleAuthError();
+                                    } else {
+                                      _showSoftMessage('No se pudo publicar la respuesta');
+                                    }
+                                  }
+                                },
+                                child: Text('Responder', style: GoogleFonts.nunito(fontWeight: FontWeight.w500)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: Text('Responder', style: GoogleFonts.nunito(color: aquaColor, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ),
                 ],
               ),
             ),
