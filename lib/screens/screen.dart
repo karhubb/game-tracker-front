@@ -517,7 +517,7 @@ class _GameListScreenState extends State<GameListScreen> {
                 ],
               ),
             ),
-            if (!isDeleted && showDelete)
+            if (showDelete && (!isDeleted || _isAdmin))
               GestureDetector(
                 onTap: () => _confirmDeleteNote(game, noteIndex, note, setModalState),
                 child: _noteIconBtn(icon: Icons.close_rounded),
