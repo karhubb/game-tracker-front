@@ -519,24 +519,7 @@ class _GameListScreenState extends State<GameListScreen> {
             ),
             if (!isDeleted && showDelete)
               GestureDetector(
-                onTap: () async {
-                  try {
-                    final previousNoteCount = game.notes.length;
-                    final updatedGame = await apiService.deleteGameNote(game.id!, noteIndex);
-                    setModalState(() {
-                      game.notes
-                        ..clear()
-                        ..addAll(updatedGame.notes);
-                    });
-                    if (updatedGame.notes.length < previousNoteCount) {
-                      _reactionController.shiftAfterDelete(noteIndex);
-                    }
-                    _refresh();
-                    _showSoftMessage("Opinión eliminada");
-                  } catch (e) {
-                    debugPrint("Error al borrar nota: $e");
-                  }
-                },
+                onTap: () => _confirmDeleteNote(game, noteIndex, note, setModalState),
                 child: _noteIconBtn(icon: Icons.close_rounded),
               ),
             if (!isDeleted && showEdit)
@@ -924,6 +907,119 @@ class _GameListScreenState extends State<GameListScreen> {
               style: GoogleFonts.nunito(color: Colors.redAccent),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Confirm note deletion with strategy selection dialog.
+  /// Two strategies: SOFT_DELETE (content-only) and CASCADE_DELETE (admin-only).
+  /// Moderators perform hard-delete (permanent removal, content disappears).
+  /// Admins can choose between soft-delete or cascade-delete.
+  void _confirmDeleteNote(Game game, int noteIndex, GameNote note, Function setModalState) {
+    if (!_canDeleteNote(note)) {
+      _showPermissionDenied();
+      return;
+    }
+
+    // Determine available strategies based on user role
+    final bool canCascadeDelete = _isAdmin;
+    final String messageStart = 'Opciones para eliminar la opinión';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(
+          messageStart,
+          style: GoogleFonts.nunito(
+            color: aquaColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          canCascadeDelete
+              ? '¿Deseas borrar solo el contenido o la opinión completa con todas las respuestas?'
+              : '¿Deseas borrar esta opinión de forma permanente?',
+          style: GoogleFonts.nunito(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          // Cancel button
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: GoogleFonts.nunito(color: Colors.white54)),
+          ),
+          // Soft-delete button (for all users)
+          TextButton(
+            onPressed: () async {
+              try {
+                Navigator.pop(ctx);
+                final previousNoteCount = game.notes.length;
+                final updatedGame = await apiService.deleteGameNote(
+                  game.id!,
+                  noteIndex,
+                  strategy: 'SOFT_DELETE',
+                );
+                if (mounted) {
+                  setModalState(() {
+                    game.notes
+                      ..clear()
+                      ..addAll(updatedGame.notes);
+                  });
+                  if (updatedGame.notes.length < previousNoteCount) {
+                    _reactionController.shiftAfterDelete(noteIndex);
+                  }
+                  _refresh();
+                  _showSoftMessage("Contenido de la opinión eliminado");
+                }
+              } catch (e) {
+                debugPrint("Error al borrar nota: $e");
+                if (mounted) {
+                  _showSoftMessage('Error al eliminar la opinión');
+                }
+              }
+            },
+            child: Text(
+              'Borrar contenido',
+              style: GoogleFonts.nunito(color: Colors.orange),
+            ),
+          ),
+          // Cascade-delete button (admin-only)
+          if (canCascadeDelete)
+            TextButton(
+              onPressed: () async {
+                try {
+                  Navigator.pop(ctx);
+                  final previousNoteCount = game.notes.length;
+                  final updatedGame = await apiService.deleteGameNote(
+                    game.id!,
+                    noteIndex,
+                    strategy: 'CASCADE_DELETE',
+                  );
+                  if (mounted) {
+                    setModalState(() {
+                      game.notes
+                        ..clear()
+                        ..addAll(updatedGame.notes);
+                    });
+                    if (updatedGame.notes.length < previousNoteCount) {
+                      _reactionController.shiftAfterDelete(noteIndex);
+                    }
+                    _refresh();
+                    _showSoftMessage("Opinión y respuestas eliminadas completamente");
+                  }
+                } catch (e) {
+                  debugPrint("Error al borrar nota en cascada: $e");
+                  if (mounted) {
+                    _showSoftMessage('Error al eliminar la opinión');
+                  }
+                }
+              },
+              child: Text(
+                'Borrar para siempre',
+                style: GoogleFonts.nunito(color: Colors.redAccent),
+              ),
+            ),
         ],
       ),
     );

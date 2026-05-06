@@ -109,10 +109,12 @@ class ApiService {
   }
 
   // ── DELETE: Borrar nota ──────────────────────────────────────────────────
-  Future<Game> deleteGameNote(int gameId, int noteIndex) async {
+  /// Delete a game note with specified strategy.
+  /// [strategy] can be 'SOFT_DELETE', 'HARD_DELETE', or 'CASCADE_DELETE' (admin-only)
+  Future<Game> deleteGameNote(int gameId, int noteIndex, {String strategy = 'SOFT_DELETE'}) async {
     final response = await _sendAuthorizedRequest(
       (headers) => http.delete(
-        Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
+        Uri.parse('$baseUrl/$gameId/notes/$noteIndex?strategy=$strategy'),
         headers: headers,
       ),
     );
