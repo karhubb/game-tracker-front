@@ -1,0 +1,39 @@
+% ============================================================
+%  main.tex  –  Game Tracker (Orden de Carga Corregido)
+% ============================================================
+
+\documentclass[12pt, a4paper, oneside]{report}
+
+% 1. Primero el motor de fuentes
+\usepackage{fontspec}
+
+% 2. CARGA DE CONFIGURACIONES
+\input{Settings} 
+\input{Premable}
+
+\begin{document}
+
+% 3. Aplicar colores globales inmediatamente
+\pagecolor{PageBg}
+\color{TextPrimary}
+
+% 4. PORTADA
+\input{Frontpage}
+\clearpage
+
+% 5. ÍNDICES Y PRELIMINARES
+\pagenumbering{roman}
+\pagestyle{plain} 
+\tableofcontents
+\clearpage
+
+% 6. CUERPO DEL DOCUMENTO
+\pagenumbering{arabic}
+\pagestyle{fancy} 
+
+\input{Chapters/Abstract}
+\input{Chapters/Introduction}
+\input{Chapters/Main_Body}
+\input{Chapters/Conclusion}
+
+\end{document}

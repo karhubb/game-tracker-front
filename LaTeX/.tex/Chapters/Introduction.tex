@@ -1,0 +1,74 @@
+% ============================================================
+%  Introduction.tex  –  Game Tracker
+% ============================================================
+
+\chapter{Introducción}
+
+\section{Contexto}
+
+En los últimos años, los videojuegos se han consolidado como uno de los medios
+de entretenimiento más importantes a nivel mundial. Sin embargo, a medida que
+las bibliotecas personales crecen, también lo hace la necesidad de organizarlas:
+recordar qué títulos ya se completaron, cuáles están pendientes y cuál fue la
+experiencia de juego resulta cada vez más difícil sin una herramienta de apoyo.
+
+Las soluciones existentes suelen ser plataformas web de terceros que requieren
+crear cuentas en servicios externos, o bien simples hojas de cálculo que no
+ofrecen funcionalidad colaborativa. Game Tracker nace como respuesta a esta
+necesidad: una aplicación móvil propia, ligera y enfocada exclusivamente en la
+gestión de un catálogo de videojuegos con la posibilidad de escribir reseñas y
+reaccionar a las opiniones de otros usuarios dentro de una misma comunidad.
+
+\section{Descripción del proyecto}
+
+Game Tracker es un sistema de gestión y reseñas de videojuegos compuesto por
+dos componentes principales:
+
+\begin{itemize}
+    \item \textbf{Backend}: una API REST desarrollada en Java con Spring Boot,
+    conectada a una base de datos MySQL. El servidor gestiona la lógica de
+    negocio, la autenticación de usuarios con JWT y la persistencia de datos.
+    Se desplegó en la plataforma Render, utilizando Aiven como servicio
+    administrado de base de datos en la nube.
+
+    \item \textbf{Frontend}: una aplicación móvil desarrollada en Flutter que
+    consume la API REST. Permite a los usuarios explorar el catálogo, registrar
+    nuevos juegos, escribir notas y reaccionar a las notas de otros usuarios
+    desde su dispositivo móvil.
+\end{itemize}
+
+\section{Objetivos}
+
+\subsection{Objetivo General}
+
+Desarrollar una aplicación móvil funcional que permita a los usuarios gestionar
+un catálogo personal de videojuegos, registrar su estado de progreso y compartir
+reseñas dentro de una comunidad, aplicando patrones de diseño de software para
+garantizar una arquitectura organizada y mantenible.
+
+\subsection{Objetivos Específicos}
+
+\begin{itemize}
+    \item Implementar una API REST con Spring Boot que exponga operaciones
+    CRUD sobre el catálogo de juegos y sus notas, protegida mediante
+    autenticación con JWT y un sistema de tres roles.
+
+    \item Desarrollar una interfaz móvil en Flutter que consuma la API y
+    presente la información de forma clara e intuitiva para el usuario.
+
+    \item Aplicar patrones de diseño reconocidos —MVC, Singleton, Strategy
+    y ChangeNotifier— en la implementación del sistema para demostrar su
+    utilidad práctica en un proyecto real.
+
+    \item Desplegar el backend y la base de datos en servicios en la nube,
+    garantizando que la aplicación sea accesible desde cualquier dispositivo
+    móvil con conexión a internet.
+\end{itemize}
+
+\section{Alcance}
+
+El proyecto abarca el ciclo completo de desarrollo de un sistema móvil con
+backend en la nube: diseño de la base de datos, implementación del servidor,
+desarrollo de la aplicación móvil y despliegue en producción. No se contempla
+dentro del alcance la integración con plataformas externas de videojuegos como
+Steam o PlayStation Network, ni la implementación de comunicación en tiempo real.

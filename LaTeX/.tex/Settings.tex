@@ -1,0 +1,161 @@
+% ============================================================
+% Settings.tex – Game Tracker (JetBrains Mono Edition)
+% ============================================================
+
+% 1. MOTOR DE FUENTES
+\usepackage{fontspec}
+
+% 2. XCOLOR (UNA sola vez)
+\usepackage[dvipsnames, svgnames, x11names, table]{xcolor}
+
+% 3. BABEL
+\usepackage[spanish, es-tabla]{babel}
+
+% 4. LAYOUT Y GEOMETRÍA
+\usepackage[
+    a4paper,
+    top=2.5cm, bottom=2.8cm,
+    left=2.8cm, right=2.2cm,
+    headheight=17pt
+]{geometry}
+
+% 5. TIPOGRAFÍA Y JUSTIFICACIÓN (El secreto de la estética)
+\usepackage{microtype}
+\usepackage{ragged2e}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{emptypage}
+\usepackage{pagecolor}
+\usepackage{afterpage}
+
+% Justificación agresiva para fuentes Mono
+\AtBeginDocument{\justifying}
+\emergencystretch=5em  
+\tolerance=2000  
+\hbadness=10000        
+\renewcommand{\baselinestretch}{1.2}
+
+% 6. FUENTES PERSONALIZADAS
+% --- JetBrains Mono como Fuente Principal ---
+\setmainfont{JetBrainsMono}[
+    Path           = ./fonts/JetBrainsMono/,
+    Extension      = .ttf,
+    UprightFont    = *-Regular,
+    BoldFont       = *-Bold,
+    ItalicFont     = *-Italic,
+    BoldItalicFont = *-BoldItalic,
+    Scale          = 0.85,
+    Ligatures      = TeX
+]
+
+% --- Fira Code para bloques de código ---
+\setmonofont{FiraCode}[
+    Path           = ./fonts/FiraCode/,
+    Extension      = .ttf,
+    UprightFont    = *-Regular,
+    BoldFont       = *-Bold,
+    Scale          = 0.85,
+    Ligatures      = TeX
+]
+
+% Forzamos que todo use la familia sans/mono
+\renewcommand{\familydefault}{\rmdefault}
+
+% 7. COLORES HUD
+\definecolor{AquaAccent}  {HTML}{40E0D0}
+\definecolor{AquaDim}     {HTML}{2BA89E}
+\definecolor{PageBg}      {HTML}{050A0A}
+\definecolor{AppDark}     {HTML}{050A0A}
+\definecolor{BoxBg}       {HTML}{0D1F1F}
+\definecolor{TextPrimary} {HTML}{E8F4F4}
+\definecolor{HeadingGray} {HTML}{668080}
+
+% 8. GRÁFICOS Y TABLAS
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+
+% 9. TIKZ
+\usepackage{tikz}
+\usetikzlibrary{babel, positioning, shapes.geometric, arrows.meta, calc}
+
+% 10. TCOLORBOX (Carga segura)
+\usepackage{tcolorbox}
+\tcbuselibrary{most, breakable, listings, skins}
+
+\newtcolorbox{patternbox}[2]{
+    colback    = BoxBg,
+    colframe   = AquaAccent,
+    colupper   = TextPrimary,
+    fonttitle  = \bfseries,
+    title      = {#1 \textemdash\ #2},
+    enhanced,
+    breakable,
+    attach boxed title to top left={yshift=-2mm, xshift=2mm},
+    boxed title style={
+        colback  = AppDark,
+        colframe = AquaAccent,
+        arc      = 0mm,
+        boxrule  = 1pt,
+    },
+    coltitle = AquaAccent,
+}
+
+% 11. HIPERVÍNCULOS
+\usepackage[colorlinks=true, allcolors=AquaAccent]{hyperref}
+
+% 12. ESTRUCTURA
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{titletoc}
+
+% 13. CÓDIGO
+\usepackage{listings}
+\lstset{
+    basicstyle      = \ttfamily\small,
+    keywordstyle    = \color{AquaAccent}\bfseries,
+    commentstyle    = \color{HeadingGray},
+    stringstyle     = \color{AquaDim},
+    numbers         = left,
+    numberstyle     = \tiny\color{HeadingGray},
+    breaklines      = true,
+    frame           = none,
+    backgroundcolor = \color{BoxBg},
+    tabsize         = 2,
+}
+
+% 14. TÍTULOS ESTILO HUD
+\titleformat{\chapter}[display]
+  {\bfseries\Huge\color{AquaAccent}}
+  {\filleft\textsuperscript{LVL.} \thechapter}
+  {1ex}
+  {\titlerule[2pt]\vspace{2ex}\filright}
+
+\titleformat{\section}
+  {\Large\bfseries\color{AquaAccent}}
+  {\thesection}{1em}{}[\titlerule]
+
+% 15. PIE DE PÁGINA
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\color{HeadingGray}\footnotesize SYS\_USER: Karla\_Sofia}
+\fancyfoot[C]{\color{HeadingGray}\footnotesize DOC: GAME\_TRACKER\_V1.0}
+\fancyfoot[R]{\color{AquaAccent}\footnotesize HP \thepage}
+
+% 16. LENGUAJE DART
+\lstdefinelanguage{Dart}{
+  keywords={abstract, as, assert, async, await, break, case, catch, class,
+    const, continue, covariant, default, deferred, do, dynamic, else, enum,
+    export, extends, extension, external, factory, false, final, finally, for,
+    Function, get, hide, if, implements, import, in, interface, is, late,
+    library, mixin, new, null, on, operator, part, required, rethrow, return,
+    sealed, set, show, static, super, switch, sync, this, throw, true, try,
+    typedef, var, void, while, with, yield},
+  sensitive    = true,
+  morecomment  = [l]{//},
+  morecomment  = [s]{/*}{*/},
+  morestring   = [b]",
+  morestring   = [b]',
+}

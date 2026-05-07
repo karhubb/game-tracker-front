@@ -1,0 +1,105 @@
+% ============================================================
+%  Frontpage.tex  –  Game Tracker (Fira Code Optimized)
+% ============================================================
+
+\begin{titlepage}
+\pagecolor{AppDark}
+
+\begin{tikzpicture}[remember picture, overlay]
+    % ── Franjas y Decoración ────────────────────────────────
+    \fill[AquaAccent] (current page.north west)
+        rectangle ([yshift=-5pt] current page.north east);
+    \fill[AquaDim] ([yshift=-5pt] current page.north west)
+        rectangle ([yshift=-9pt] current page.north east);
+    \fill[AquaDim] ([yshift=9pt] current page.south west)
+        rectangle (current page.south east);
+    \fill[AquaAccent] ([yshift=9pt] current page.south west)
+        rectangle ([yshift=13pt] current page.south east);
+
+    \foreach \r in {3, 5.5, 8, 10.5}{
+        \draw[AquaAccent, opacity=0.05, line width=0.7pt]
+            ([xshift=-\r cm, yshift=\r cm] current page.south west) circle (\r cm);
+    }
+    \foreach \r in {4.5, 8, 11}{
+        \draw[AquaAccent, opacity=0.04, line width=0.5pt]
+            ([xshift=\r cm, yshift=-\r cm] current page.north east) circle (\r cm);
+    }
+    \draw[AquaAccent, opacity=0.06, line width=20pt]
+        ([xshift=2cm, yshift=-4cm] current page.north west)
+        -- ([xshift=-1cm, yshift=3cm] current page.south east);
+\end{tikzpicture}
+
+\vspace*{0.5cm}
+
+% ── Logo ──────────────────────────────────────────────────
+\begin{center}
+    \includegraphics[width=1.8cm]{Resources/logoApp.png}
+\end{center}
+
+\vspace{0.2cm}
+
+% ── Línea decorativa ──────────────────────────────────────
+\begin{center}
+    {\color{AquaAccent}\rule{4cm}{1.2pt}}%
+    \hspace{0.4em}%
+    {\color{AquaDim}\rule{1cm}{0.3pt}}
+\end{center}
+
+\vspace{0.4cm}
+
+% ── Título principal ──────────────────────────────────────
+\begin{center}
+    {\fontsize{30}{36}\selectfont\bfseries\color{white} Game Tracker}
+
+    \vspace{0.25cm}
+
+    {\large\color{AquaAccent} Sistema de gestión y reseñas de videojuegos}
+\end{center}
+
+\vspace{0.5cm}
+
+% ── Imagen central ────────────────────────────────────────
+\begin{center}
+    \fcolorbox{AquaAccent}{BoxBg}{%
+        \includegraphics[width=7cm]{Resources/titleImage.png}%
+    }
+\end{center}
+
+\vspace{0.7cm}
+
+% ── Separador ─────────────────────────────────────────────
+\begin{center}
+    {\color{AquaDim}\rule{9cm}{0.3pt}}
+\end{center}
+
+\vspace{0.5cm}
+
+% ── Información del autor ─────────────────────────────────
+\begin{center}
+    {\small\color{HeadingGray}Submitted by:}
+
+    \vspace{0.2cm}
+    {\large\bfseries\color{white} Karla Sofía Castro Pérez}
+
+    \vspace{0.4cm}
+
+    {\small\color{HeadingGray}Advisor: Adolfo Centeno Tellez}
+
+    \vspace{1cm}
+
+    {\small\color{AquaAccent}07.05.2026 \quad (V1.0)}
+\end{center}
+
+\vfill
+
+% ── Footer de portada ─────────────────────────────────────
+\begin{center}
+    {\footnotesize\color{HeadingGray!60!AppDark}
+    Ingeniería de Software \,\textbullet\, Cuarto Semestre}
+\end{center}
+
+\vspace{0.1cm}
+\end{titlepage}
+
+
+\afterpage{\pagecolor{PageBg}}

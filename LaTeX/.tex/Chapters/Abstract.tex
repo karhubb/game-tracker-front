@@ -1,0 +1,25 @@
+% ============================================================
+%  Abstract.tex  –  Game Tracker
+% ============================================================
+
+\chapter*{Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+
+Game Tracker es una aplicación móvil diseñada para que los usuarios gestionen
+su colección personal de videojuegos y compartan reseñas dentro de una
+comunidad. El sistema permite registrar juegos con atributos como nombre,
+franquicia, categoría y calificación; marcar el estado de progreso de cada
+título y escribir notas con soporte de respuestas anidadas. Otros usuarios
+pueden reaccionar a esas notas mediante un sistema de emociones configurables.
+
+El proyecto sigue una arquitectura cliente-servidor: el backend está construido
+en Java con Spring Boot, utiliza MySQL como motor de base de datos y se despliega
+en la nube a través de Render y Aiven. El frontend es una aplicación móvil
+desarrollada en Flutter que se comunica con el servidor mediante una API REST
+protegida con JSON Web Tokens (JWT).
+
+A lo largo del desarrollo se aplicaron cuatro patrones de diseño reconocidos
+—MVC, Singleton, Strategy y ChangeNotifier— con el objetivo de mantener el
+código organizado, extensible y fácil de probar. El resultado es un sistema
+funcional que cubre el ciclo completo de gestión de un catálogo de videojuegos,
+desde el registro inicial hasta las interacciones de la comunidad.

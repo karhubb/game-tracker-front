@@ -1,0 +1,89 @@
+% ============================================================
+%  Conclusion.tex  –  Game Tracker
+% ============================================================
+
+\chapter{Conclusión}
+
+\section{Resultados obtenidos}
+
+El desarrollo de Game Tracker permitió construir un sistema funcional de
+extremo a extremo: desde el diseño de la base de datos relacional hasta la
+interfaz móvil que el usuario opera en su dispositivo. El catálogo de
+videojuegos puede gestionarse completamente a través de la aplicación,
+incluyendo el registro de juegos con su estado de progreso, la escritura de
+notas con soporte de respuestas anidadas y la posibilidad de reaccionar a
+las publicaciones de otros usuarios.
+
+Desde el punto de vista técnico, el proyecto cumplió con el objetivo de
+aplicar patrones de diseño de forma deliberada y justificada, no como un
+requisito superficial, sino como decisiones de arquitectura que resolvieron
+problemas concretos durante el desarrollo.
+
+\section{Reflexión sobre los Patrones de Diseño}
+
+Trabajar con patrones de diseño durante este proyecto cambió la forma en que
+se tomaron las decisiones de implementación. Antes de aplicarlos, la tendencia
+natural era escribir toda la lógica donde pareciera más conveniente en el
+momento, lo que terminaba generando controladores muy extensos y difíciles de
+seguir. Los patrones obligaron a hacerse preguntas concretas: \textit{¿quién
+es responsable de este comportamiento? ¿esta lógica puede cambiar en el futuro?
+¿quién necesita saber sobre esto?}
+
+El patrón que más impacto tuvo en la calidad del código fue \textbf{Strategy},
+especialmente en la gestión de las estrategias de eliminación de notas. Lo que
+comenzó como dos casos manejados con \texttt{if-else} creció hasta tres
+variantes con reglas distintas según el rol del usuario, y la estructura del
+patrón absorbió ese crecimiento sin necesidad de reescribir la lógica
+existente.f
+
+El patrón \textbf{Singleton} en \texttt{AuthService} resolvió un problema real
+de coordinación: sin él, mantener el estado de sesión coherente entre múltiples
+pantallas habría requerido pasar el token como argumento a través de cada widget,
+ensuciando el código con información que no le corresponde a la mayoría de
+las clases.
+
+\textbf{ChangeNotifier} demostró que la separación entre vista y lógica no es
+solo una buena práctica teórica: al aislar toda la lógica de reacciones en
+\texttt{ReactionTimelineController}, fue posible modificar el comportamiento del
+modal sin tocar la pantalla principal, y actualizar la interfaz sin volver a
+hacer llamadas HTTP innecesarias.
+
+Finalmente, \textbf{MVC} como base estructural del backend facilitó la
+incorporación progresiva de nuevas funcionalidades ---reacciones, moderación,
+eliminación en cascada--- sin que los cambios en una capa afectaran a las demás.
+
+\section{Lecciones aprendidas}
+
+\begin{itemize}
+    \item La arquitectura cliente-servidor con una API REST como contrato entre 
+    ambos lados permitió desarrollar el backend y el frontend de forma paralela 
+    e independiente, lo cual simplificó el proceso de trabajo.
+
+    \item El despliegue en la nube expuso problemas reales que no aparecen en 
+    entornos locales, como la configuración correcta de CORS, la gestión de 
+    variables de entorno y los tiempos de respuesta de una base de datos remota.
+
+    \item Definir bien el sistema de roles desde el inicio del proyecto evitó 
+    tener que refactorizar la lógica de permisos más adelante, cuando ya había 
+    código que dependía de ella.
+
+    \item Centralizar las reglas de autorización en un único servicio 
+    (\texttt{NoteAuthorizationService}) facilitó la escritura de pruebas 
+    unitarias, ya que toda la lógica de permisos vive en un solo lugar.
+\end{itemize}
+
+\section{Trabajo a futuro}
+
+Como extensiones naturales del sistema se identifican las siguientes mejoras:
+
+\begin{itemize}
+    \item Integración con APIs externas ---como RAWG o IGDB--- para importar 
+    automáticamente la información de los juegos, incluyendo portada, género 
+    y descripción oficial.
+    \item Notificaciones en tiempo real cuando otro usuario reacciona a una 
+    nota propia, utilizando WebSockets o eventos enviados por el servidor.
+    \item Un panel de administración web dedicado para gestionar el catálogo 
+    sin necesidad de usar la aplicación móvil.
+    \item Ampliación del sistema de roles para incluir listas de juegos 
+    privadas y la posibilidad de compartirlas con usuarios específicos.
+\end{itemize}
