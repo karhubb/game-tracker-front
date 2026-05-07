@@ -22,6 +22,9 @@ class GameListScreen extends StatefulWidget {
 }
 
 class _GameListScreenState extends State<GameListScreen> {
+  static const String _deletedPlaceholder =
+      'El contenido de este comentario se ha eliminado.';
+
   final ApiService apiService = ApiService();
   final AuthService _authService = AuthService();
   late final ReactionTimelineController _reactionController;
@@ -85,8 +88,13 @@ class _GameListScreenState extends State<GameListScreen> {
 
   /// ¿Puede el usuario actual editar una opinión?
   /// El usuario puede editar sus propias notas; el admin puede editar cualquiera.
+  bool _isDeletedNote(GameNote note) {
+    return note.deleted || note.content.trim() == _deletedPlaceholder;
+  }
+
   bool _canEditNote(GameNote note) {
     if (_currentUser == null) return false;
+    if (_isDeletedNote(note)) return false;
     if (_isAdmin) return true;
     // Si la nota guarda el autor, comparar. Si no (notas legacy sin autor),
     // solo el admin puede tocarlas.
@@ -99,6 +107,7 @@ class _GameListScreenState extends State<GameListScreen> {
   bool _canDeleteNote(GameNote note) {
     if (_currentUser == null) return false;
     if (_isAdmin || _isModerator) return true;
+    if (_isDeletedNote(note)) return false;
     if (note.authorUsername == null) return false;
     return note.authorUsername == _currentUser!.username;
   }
@@ -215,26 +224,6 @@ class _GameListScreenState extends State<GameListScreen> {
         .toList();
   }
 
-  List<int> _collectThreadIndexes(List<GameNote> notes, int rootIndex) {
-    final removed = <int>[rootIndex];
-    for (var i = rootIndex + 1; i < notes.length; i++) {
-      if (_isDescendantIndex(notes, i, rootIndex)) {
-        removed.add(i);
-      }
-    }
-    return removed;
-  }
-
-  bool _isDescendantIndex(List<GameNote> notes, int candidateIndex, int ancestorIndex) {
-    int? parent = notes[candidateIndex].parentIndex;
-    while (parent != null) {
-      if (parent == ancestorIndex) return true;
-      if (parent < 0 || parent >= notes.length) return false;
-      parent = notes[parent].parentIndex;
-    }
-    return false;
-  }
-
   List<Widget> _buildThreadedNotes(
     Game game,
     StateSetter setModalState,
@@ -326,6 +315,7 @@ class _GameListScreenState extends State<GameListScreen> {
         "${note.date.day}/${note.date.month}/${note.date.year} "
         "${note.date.hour}:${note.date.minute.toString().padLeft(2, '0')}";
 
+    final bool isDeleted = _isDeletedNote(note);
     final bool showEdit = _canEditNote(note);
     final bool showDelete = _canDeleteNote(note);
 
@@ -406,39 +396,44 @@ class _GameListScreenState extends State<GameListScreen> {
                   ],
                   const SizedBox(height: 3),
                   Text(
-                    note.content,
+                    isDeleted
+                        ? _deletedPlaceholder
+                        : note.content,
                     style: GoogleFonts.nunito(
-                      color: Colors.white60,
+                      color: isDeleted ? Colors.white38 : Colors.white60,
                       fontSize: 13,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: isDeleted ? FontWeight.w500 : FontWeight.w400,
                       height: 1.4,
+                      fontStyle: isDeleted ? FontStyle.italic : FontStyle.normal,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  if (reactionTypes.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: reactionTypes
-                          .map(
-                            (reaction) => _buildReactionChip(
-                              reaction: reaction,
-                              count: reactionSummary?.countFor(reaction.description) ?? 0,
-                              selectedReactionId:
-                                  reactionSummary?.myReaction?.reactionId,
-                              onTap: () => onReactionTap(reaction),
-                            ),
-                          )
-                          .toList(),
-                    )
-                  else
-                    Text(
-                      'Cargando reacciones...',
-                      style: GoogleFonts.nunito(
-                        color: Colors.white24,
-                        fontSize: 10,
+                  if (!isDeleted) ...[
+                    const SizedBox(height: 10),
+                    if (reactionTypes.isNotEmpty)
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: reactionTypes
+                            .map(
+                              (reaction) => _buildReactionChip(
+                                reaction: reaction,
+                                count: reactionSummary?.countFor(reaction.description) ?? 0,
+                                selectedReactionId:
+                                    reactionSummary?.myReaction?.reactionId,
+                                onTap: () => onReactionTap(reaction),
+                              ),
+                            )
+                            .toList(),
+                      )
+                    else
+                      Text(
+                        'Cargando reacciones...',
+                        style: GoogleFonts.nunito(
+                          color: Colors.white24,
+                          fontSize: 10,
+                        ),
                       ),
-                    ),
+                  ],
                   const SizedBox(height: 8),
                   if (_canPostNote)
                     TextButton(
@@ -522,27 +517,12 @@ class _GameListScreenState extends State<GameListScreen> {
                 ],
               ),
             ),
-            if (showDelete)
+            if (showDelete && (!isDeleted || _isAdmin))
               GestureDetector(
-                onTap: () async {
-                  try {
-                    await apiService.deleteGameNote(game.id!, noteIndex);
-                    final removedIndexes = _collectThreadIndexes(game.notes, noteIndex);
-                    setModalState(() {
-                      for (final idx in removedIndexes.reversed) {
-                        game.notes.removeAt(idx);
-                      }
-                    });
-                    _reactionController.shiftAfterDelete(noteIndex);
-                    _refresh();
-                    _showSoftMessage("Opinión eliminada");
-                  } catch (e) {
-                    debugPrint("Error al borrar nota: $e");
-                  }
-                },
+                onTap: () => _confirmDeleteNote(game, noteIndex, note, setModalState),
                 child: _noteIconBtn(icon: Icons.close_rounded),
               ),
-            if (showEdit)
+            if (!isDeleted && showEdit)
               GestureDetector(
                 onTap: () => _editNote(game, noteIndex, note, setModalState),
                 child: _noteIconBtn(icon: Icons.edit_rounded),
@@ -927,6 +907,121 @@ class _GameListScreenState extends State<GameListScreen> {
               style: GoogleFonts.nunito(color: Colors.redAccent),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Confirm note deletion with strategy selection dialog.
+  /// Two strategies: SOFT_DELETE (content-only) and CASCADE_DELETE (admin-only).
+  /// Moderators perform hard-delete (permanent removal, content disappears).
+  /// Admins can choose between soft-delete or cascade-delete.
+  void _confirmDeleteNote(Game game, int noteIndex, GameNote note, Function setModalState) {
+    if (!_canDeleteNote(note)) {
+      _showPermissionDenied();
+      return;
+    }
+
+    final bool isDeleted = _isDeletedNote(note);
+    final bool canCascadeDelete = _isAdmin;
+    final String messageStart = 'Opciones para eliminar la opinión';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: Text(
+          messageStart,
+          style: GoogleFonts.nunito(
+            color: aquaColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          isDeleted
+              ? 'Esta opinión ya está eliminada. Puedes purgarla definitivamente.'
+              : canCascadeDelete
+              ? '¿Deseas borrar solo el contenido o la opinión completa con todas las respuestas?'
+              : '¿Deseas borrar esta opinión de forma permanente?',
+          style: GoogleFonts.nunito(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          // Cancel button
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: GoogleFonts.nunito(color: Colors.white54)),
+          ),
+          if (!isDeleted)
+            TextButton(
+              onPressed: () async {
+                try {
+                  Navigator.pop(ctx);
+                  final previousNoteCount = game.notes.length;
+                  final updatedGame = await apiService.deleteGameNote(
+                    game.id!,
+                    noteIndex,
+                    strategy: 'SOFT_DELETE',
+                  );
+                  if (mounted) {
+                    setModalState(() {
+                      game.notes
+                        ..clear()
+                        ..addAll(updatedGame.notes);
+                    });
+                    if (updatedGame.notes.length < previousNoteCount) {
+                      _reactionController.shiftAfterDelete(noteIndex);
+                    }
+                    _refresh();
+                    _showSoftMessage("Contenido de la opinión eliminado");
+                  }
+                } catch (e) {
+                  debugPrint("Error al borrar nota: $e");
+                  if (mounted) {
+                    _showSoftMessage('Error al eliminar la opinión');
+                  }
+                }
+              },
+              child: Text(
+                'Borrar contenido',
+                style: GoogleFonts.nunito(color: Colors.orange),
+              ),
+            ),
+          if (canCascadeDelete)
+            TextButton(
+              onPressed: () async {
+                try {
+                  Navigator.pop(ctx);
+                  final previousNoteCount = game.notes.length;
+                  final strategy = isDeleted ? 'CASCADE_DELETE' : 'CASCADE_DELETE';
+                  final updatedGame = await apiService.deleteGameNote(
+                    game.id!,
+                    noteIndex,
+                    strategy: strategy,
+                  );
+                  if (mounted) {
+                    setModalState(() {
+                      game.notes
+                        ..clear()
+                        ..addAll(updatedGame.notes);
+                    });
+                    if (updatedGame.notes.length < previousNoteCount) {
+                      _reactionController.shiftAfterDelete(noteIndex);
+                    }
+                    _refresh();
+                    _showSoftMessage("Opinión eliminada definitivamente");
+                  }
+                } catch (e) {
+                  debugPrint("Error al borrar nota definitivamente: $e");
+                  if (mounted) {
+                    _showSoftMessage('Error al eliminar la opinión');
+                  }
+                }
+              },
+              child: Text(
+                'Borrar para siempre',
+                style: GoogleFonts.nunito(color: Colors.redAccent),
+              ),
+            ),
         ],
       ),
     );

@@ -109,14 +109,21 @@ class ApiService {
   }
 
   // ── DELETE: Borrar nota ──────────────────────────────────────────────────
-  Future<void> deleteGameNote(int gameId, int noteIndex) async {
+  /// Delete a game note with specified strategy.
+  /// [strategy] can be 'SOFT_DELETE', 'HARD_DELETE', or 'CASCADE_DELETE' (admin-only)
+  Future<Game> deleteGameNote(int gameId, int noteIndex, {String strategy = 'SOFT_DELETE'}) async {
     final response = await _sendAuthorizedRequest(
       (headers) => http.delete(
-        Uri.parse('$baseUrl/$gameId/notes/$noteIndex'),
+        Uri.parse('$baseUrl/$gameId/notes/$noteIndex?strategy=$strategy'),
         headers: headers,
       ),
     );
     _ensureSuccess(response, {200, 204}, 'Error al borrar la nota');
+    if (response.body.isEmpty) {
+      throw Exception('Error al borrar la nota: respuesta vacía');
+    }
+
+    return Game.fromJson(json.decode(response.body) as Map<String, dynamic>);
   }
 
   // ── DELETE: Borrar juego ─────────────────────────────────────────────────
