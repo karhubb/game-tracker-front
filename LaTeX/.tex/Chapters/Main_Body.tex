@@ -183,7 +183,7 @@ actualiza los campos del objeto \texttt{Game} (Modelo) y persiste el cambio
 mediante el repositorio JPA.
 
 \vspace{0.5em}
-\textbf{¿Por qué lo elegimos?}
+\textbf{¿Por qué lo elegí?}
 
 Spring Boot impone MVC de forma natural a través de sus anotaciones. La
 alternativa directa sería un enfoque de \textit{Transaction Script}, en el que
@@ -236,7 +236,7 @@ invoque \texttt{AuthService()} obtiene exactamente el mismo objeto con el
 mismo token cargado, sin necesidad de pasarlo como parámetro entre pantallas.
 
 \vspace{0.5em}
-\textbf{¿Por qué lo elegimos?}
+\textbf{¿Por qué este patrón?}
 
 El token JWT y los datos del usuario autenticado son información que múltiples
 partes de la aplicación necesitan: la pantalla de inicio, el formulario de
@@ -246,6 +246,57 @@ sesión, lo que generaría inconsistencias. La alternativa más común sería
 inyectar el token manualmente como argumento a través del árbol de widgets,
 pero eso ensucia las firmas de cada clase con información que no le pertenece.
 Singleton mantiene la coherencia de sesión de forma transparente.
+
+\subsection{Evidencias de Código: Singleton (AuthService)}
+
+\begin{figure}[H]
+    \centering
+    % FILA 1: Inicio y Constructor privado
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Singleton/Singleton-1.png}
+        \caption*{Parte 1: Instancia estática}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Singleton/Singleton-2.png}
+        \caption*{Parte 2: Constructor privado}
+    \end{minipage}
+
+    \vspace{2em}
+
+    % FILA 2: Métodos de acceso y estado
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Singleton/Singleton-3.png}
+        \caption*{Parte 3: Acceso a la instancia}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Singleton/Singleton-4.png}
+        \caption*{Parte 4: Manejo de sesión}
+    \end{minipage}
+
+    \vspace{2em}
+
+    % FILA 3: Persistencia y Token
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Singleton/Singleton-5.png}
+        \caption*{Parte 5: Persistencia de datos}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Singleton/Singleton-6.png}
+        \caption*{Parte 6: Recuperación del Token}
+    \end{minipage}
+
+    \vspace{1.5em}
+    \caption{Implementación del patrón Singleton para la gestión de autenticación.}
+\end{figure}
 
 \end{patternbox}
 
@@ -304,7 +355,7 @@ pueden eliminarse de tres formas distintas según el rol del usuario:
 que el llamante necesite conocer los detalles de ninguna de las tres variantes.
 
 \vspace{0.5em}
-\textbf{¿Por qué lo elegimos?}
+\textbf{¿Por qué lo elegí?}
 
 La alternativa directa era una cadena de \texttt{if-else} dentro del
 controlador. Eso funciona para dos casos, pero al incorporar la tercera
@@ -313,6 +364,40 @@ difícil de mantener. Strategy permite agregar nuevas formas de eliminación sin
 modificar la lógica existente, siguiendo el principio Open/Closed. Se consideró
 el patrón Command, pero habría añadido complejidad innecesaria para un problema
 que se resuelve limpiamente con una interfaz y tres implementaciones.
+
+\subsection{Evidencias de Código: Strategy (Patrones de Borrado)}
+
+% --- PRIMERA PARTE: La Interfaz y la Estrategia 1 ---
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Strategy/Strategy-1.1.png}
+        \caption*{Parte 1: Interfaz \texttt{DeleteStrategy}}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Strategy/Strategy-1.1.png}
+        \caption*{Parte 2: Implementación \texttt{PhysicalDelete}}
+    \end{minipage}
+    
+    \vspace{2em}
+    \caption{Definición de la interfaz y primera estrategia de eliminación.}
+\end{figure}
+
+% --- SEGUNDA PARTE: La Estrategia 2 (Destacada) ---
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.7\textwidth} % Más grande para resaltar la lógica compleja
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Strategy/Strategy-2.png}
+        \caption*{Parte 3: Implementación \texttt{SoftDelete} (Borrado Lógico)}
+    \end{minipage}
+    
+    \vspace{1.5em}
+    \caption{Segunda estrategia de eliminación implementando el patrón Strategy.}
+\end{figure}
 
 \end{patternbox}
 
@@ -359,7 +444,7 @@ reacción, la pantalla llama a \texttt{controller.toggleReaction(...)} y el moda
 se actualiza sin necesidad de recargar toda la pantalla.
 
 \vspace{0.5em}
-\textbf{¿Por qué lo elegimos?}
+\textbf{¿Por qué lo elegí?}
 
 La alternativa más simple habría sido usar \texttt{setState} directamente dentro
 del widget de la pantalla. Sin embargo, eso mezcla la lógica de negocio
@@ -371,6 +456,182 @@ usar bibliotecas más completas como \textit{Provider} o \textit{Riverpod}, pero
 para el alcance del proyecto \texttt{ChangeNotifier} es más que suficiente,
 no requiere dependencias adicionales y es la solución recomendada por la
 documentación oficial de Flutter para casos de esta escala.
+
+
+\subsection{Evidencias de Código: ChangeNotifier}
+
+% --- PRIMERA PARTE (4 imágenes) ---
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-1.png}
+        \caption*{Parte 1: Definición de la clase}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-2.png}
+        \caption*{Parte 2: Variables de estado}
+    \end{minipage}
+
+    \vspace{2em}
+
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-3.png}
+        \caption*{Parte 3: Getters públicos}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-4.png}
+        \caption*{Parte 4: Método prepareForGame}
+    \end{minipage}
+    \caption{Implementación del controlador reactivo (1/2).}
+\end{figure}
+
+\newpage % Saltamos a la siguiente página para que respiren
+
+% --- SEGUNDA PARTE (Las 5 que faltan) ---
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-5.png}
+        \caption*{Parte 5: Lógica de carga}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-6.png}
+        \caption*{Parte 6: Manejo de errores}
+    \end{minipage}
+
+    \vspace{2em}
+
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-7.png}
+        \caption*{Parte 7: Toggle de reacciones}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-8.png}
+        \caption*{Parte 8: Shift de índices}
+    \end{minipage}
+
+    \vspace{2em}
+
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/ChangeNotifier/ChangeNotifier-9.png}
+        \caption*{Parte 9: Reset de estado}
+    \end{minipage}
+    \caption{Implementación del controlador reactivo (2/2).}
+\end{figure}
+
+\end{patternbox}
+
+% ────────────────────────────────────────────────────────────
+\subsection{Facade — Simplificación de la Comunicación con la API}
+% ────────────────────────────────────────────────────────────
+
+\begin{patternbox}{Patrón Estructural}{Facade (Fachada)}
+
+\textbf{¿Qué es?}
+
+El patrón \textit{Facade} proporciona una interfaz unificada y simplificada para 
+un conjunto de interfaces en un subsistema. Actúa como un "punto de entrada" 
+que oculta la complejidad del acceso a librerías, protocolos de red o lógicas 
+de autenticación, exponiendo únicamente los métodos que el cliente necesita 
+realmente utilizar.
+
+\vspace{0.5em}
+\textbf{¿Cómo funciona en Game Tracker?}
+
+En el proyecto, la clase \texttt{ReactionApiService} implementa este patrón al 
+centralizar todas las operaciones de red relacionadas con las reacciones. En lugar 
+de que los controladores o widgets gestionen directamente la librería \texttt{http}, 
+la construcción de URLs o el parseo de JSON, simplemente llaman a métodos de alto 
+nivel. El servicio se encarga de:
+
+\begin{itemize}
+    \item \textbf{Gestión de Cabeceras:} Utiliza internamente el \texttt{AuthService} 
+    para inyectar automáticamente el token JWT en el \textit{header} de autorización.
+    \item \textbf{Manejo de Endpoints:} Construye dinámicamente las rutas hacia 
+    el servidor (ej. \texttt{/notes/reactions/games/\{id\}}) ocultando la estructura 
+    del backend.
+    \item \textbf{Adaptación de Datos:} Transforma las respuestas crudas de la red 
+    en modelos de datos tipados (\texttt{ReactionType}, \texttt{NoteReactionSummary}), 
+    actuando también como un adaptador.
+\end{itemize}
+
+Un ejemplo claro es el método \texttt{toggleReaction} del controlador, el cual no sabe 
+nada sobre protocolos HTTP o tokens de seguridad; solo invoca al \texttt{ApiService} 
+y espera la respuesta procesada.
+
+\vspace{0.5em}
+\textbf{¿Por qué lo elegí?}
+
+Sin este patrón, cada vez que el backend cambiara la ruta de un \textit{endpoint} 
+o la estructura de un objeto JSON, habría que modificar múltiples archivos en el 
+frontend. El uso de una \textit{Fachada} permite que el código sea \textbf{DRY} 
+(\textit{Don't Repeat Yourself}), centralizando el mantenimiento en un solo lugar. 
+Además, facilita la legibilidad: es mucho más claro leer un método llamado 
+\texttt{fetchReactionTypes()} que ver diez líneas de código configurando una 
+petición \texttt{http.get} con validación de estados y decodificación de bytes. 
+Esto asegura que la lógica de comunicación sea independiente de la lógica de 
+presentación de la aplicación.
+
+\subsection{Evidencias de Código: Facade (ReactionApiService)}
+
+% --- PRIMERA PARTE (4 imágenes en rejilla 2x2) ---
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Facade/Facade-1.png}
+        \caption*{Parte 1: Configuración de Endpoints}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Facade/Facade-2.png}
+        \caption*{Parte 2: Gestión de Headers y Auth}
+    \end{minipage}
+
+    \vspace{2.5em} % Espacio generoso entre filas
+
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Facade/Facade-3.png}
+        \caption*{Parte 3: Fetch de Catálogos}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Facade/Facade-4.png}
+        \caption*{Parte 4: Resumen de Reacciones}
+    \end{minipage}
+    \caption{Implementación de la Fachada de servicios de red (1/2).}
+\end{figure}
+
+\newpage % Salto de página para la última imagen
+
+% --- SEGUNDA PARTE (La imagen 5 centrada y destacada) ---
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.6\textwidth} % Un poco más grande por estar sola
+        \centering
+        \includegraphics[width=\textwidth]{Resources/Facade/Facade-5.png}
+        \caption*{Parte 5: Lógica de Toggle y Delete}
+    \end{minipage}
+    
+    \vspace{1.5em}
+    \caption{Implementación de la Fachada de servicios de red (2/2).}
+\end{figure}
 
 \end{patternbox}
 

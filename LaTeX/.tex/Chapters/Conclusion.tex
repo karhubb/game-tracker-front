@@ -48,42 +48,8 @@ solo una buena práctica teórica: al aislar toda la lógica de reacciones en
 modal sin tocar la pantalla principal, y actualizar la interfaz sin volver a
 hacer llamadas HTTP innecesarias.
 
+Por otro lado, la implementación del patrón \textbf{Facade} a través de \texttt{ReactionApiService} fue fundamental para limpiar la comunicación con el servidor. Sin esta fachada, la lógica de las pantallas de Flutter estaría plagada de detalles técnicos como la construcción de URLs, el manejo de verbos HTTP y la decodificación manual de JSON. Al centralizar estas tareas, el servicio permitió que el resto del sistema interactuara con la API mediante métodos de alto nivel, ocultando la complejidad de la red y garantizando que, si el backend cambia la estructura de sus rutas, el impacto en el frontend sea nulo. Esto no solo mejoró la legibilidad, sino que transformó la capa de red en una herramienta de "conectar y usar".
+
 Finalmente, \textbf{MVC} como base estructural del backend facilitó la
 incorporación progresiva de nuevas funcionalidades ---reacciones, moderación,
 eliminación en cascada--- sin que los cambios en una capa afectaran a las demás.
-
-\section{Lecciones aprendidas}
-
-\begin{itemize}
-    \item La arquitectura cliente-servidor con una API REST como contrato entre 
-    ambos lados permitió desarrollar el backend y el frontend de forma paralela 
-    e independiente, lo cual simplificó el proceso de trabajo.
-
-    \item El despliegue en la nube expuso problemas reales que no aparecen en 
-    entornos locales, como la configuración correcta de CORS, la gestión de 
-    variables de entorno y los tiempos de respuesta de una base de datos remota.
-
-    \item Definir bien el sistema de roles desde el inicio del proyecto evitó 
-    tener que refactorizar la lógica de permisos más adelante, cuando ya había 
-    código que dependía de ella.
-
-    \item Centralizar las reglas de autorización en un único servicio 
-    (\texttt{NoteAuthorizationService}) facilitó la escritura de pruebas 
-    unitarias, ya que toda la lógica de permisos vive en un solo lugar.
-\end{itemize}
-
-\section{Trabajo a futuro}
-
-Como extensiones naturales del sistema se identifican las siguientes mejoras:
-
-\begin{itemize}
-    \item Integración con APIs externas ---como RAWG o IGDB--- para importar 
-    automáticamente la información de los juegos, incluyendo portada, género 
-    y descripción oficial.
-    \item Notificaciones en tiempo real cuando otro usuario reacciona a una 
-    nota propia, utilizando WebSockets o eventos enviados por el servidor.
-    \item Un panel de administración web dedicado para gestionar el catálogo 
-    sin necesidad de usar la aplicación móvil.
-    \item Ampliación del sistema de roles para incluir listas de juegos 
-    privadas y la posibilidad de compartirlas con usuarios específicos.
-\end{itemize}
